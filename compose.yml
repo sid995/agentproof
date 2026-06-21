@@ -1,0 +1,49 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: agentproof-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-agentproof}
+      POSTGRES_USER: ${POSTGRES_USER:-agentproof}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agentproof}
+    ports:
+      - "5432:5432"
+    volumes:
+      - agentproof-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-agentproof} -d ${POSTGRES_DB:-agentproof}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: agentproof-redis
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+    ports:
+      - "6379:6379"
+    volumes:
+      - agentproof-redis-data:/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "redis-cli",
+          "ping",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  agentproof-postgres-data:
+  agentproof-redis-data:

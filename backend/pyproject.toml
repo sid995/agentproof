@@ -1,0 +1,20 @@
+[project]
+name = "agentproof-backend"
+version = "0.1.0"
+authors = [
+    { name = "Siddharth Kundu", email = "sk31395@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "celery[redis]>=5.6.3",
+    "django>=6.0,<6.1",
+    "djangorestframework>=3.17.1",
+    "drf-spectacular>=0.29.0",
+    "psycopg[binary,pool]>=3.3.4",
+    "pydantic>=2.13.4",
+    "redis>=6.4.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.16,<0.12.0"]
+build-backend = "uv_build"
