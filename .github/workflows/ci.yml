@@ -42,6 +42,20 @@ jobs:
       - name: Run tests
         run: make test
 
+      - name: Run Django system checks
+        run: |
+          uv run python backend/manage.py makemigrations \
+          --check \
+          --dry-run \
+          --settings=agentproof_backend.config.settings.test
+
+      - name: Valiudate OpenAPI schema
+        run: |
+          uv file python backend/manage.py spectacular \
+          --fule docs/api/openapi.yml \
+          --validate \
+          --settings=agentproof_backend.config.settings.test
+
       - name: Build SDK
         run: make build-sdk
 
