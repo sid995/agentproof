@@ -1,0 +1,35 @@
+openapi: 3.0.3
+info:
+  title: AgentProof API
+  version: 0.1.0
+  description: Reliability, evaluation, observability, and governance API for AI applications.
+paths:
+  /api/v1/status/:
+    get:
+      operationId: get_service_status
+      description: Return the public API status
+      tags:
+      - status
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+          description: ''
+components:
+  schemas:
+    StatusResponse:
+      type: object
+      description: Schema for the service status response.
+      properties:
+        status:
+          type: string
+        service:
+          type: string
+        version:
+          type: string
+      required:
+      - service
+      - status
+      - version

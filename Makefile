@@ -28,7 +28,7 @@ type-check:
 test:
 	uv run pytest
 
-check: format-check lint type-check test
+check: format-check lint type-check django-check migrations-check test
 
 audit:
 	uv run pip-audit
@@ -56,3 +56,42 @@ clean:
 	rm -rf build
 	find . -type d -name __pycache__ -prune -exec rm -rf {} +
 	find . -type f -name '*.py[co]' -delete
+
+.PHONY: django-check migrations-check makemigrations migrate \
+	superuser server server-asgi shell schema collectstatic
+
+django-check:
+	uv run python backend/manage.py check
+
+migrations-check:
+	uv run python backend/manage.py makemigrations --check --dry-run
+
+makemigrations:
+	uv run python backend/manage.py makemigrations
+
+migrate:
+	uv run python backend/manage.py migrate
+
+superuser:
+	uv run python backend/manage.py createsuperuser
+
+server:
+	uv run python backend/manage.py runserver 0.0.0.0:8000
+
+server-asgi:
+	uv run uvicorn agentproof_backend.config.asgi:application \
+		--app-dir backend/src \
+		--host 0.0.0.0 \
+		--port 8000 \
+		--reload
+
+shell:
+	uv run python backend/manage.py shell
+
+schema:
+	uv run python backend/manage.py spectacular \
+		--file docs/api/openapi.yml \
+		--validate
+
+collectstatic:
+	uv run python backend/manage.py collectstatic --noinput
