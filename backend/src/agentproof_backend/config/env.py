@@ -48,6 +48,11 @@ class RuntimeSettings(BaseSettings):
         validation_alias="DJANGO_LOG_LEVEL",
     )
 
+    app_base_url: str = Field(
+        default="http://localhost:8000",
+        validation_alias="APP_BASE_URL",
+    )
+
     database_url: str = Field(
         default="postgresql://agentproof:agentproof@localhost:5432/agentproof",  # noqa: #501 # pragma: allowlist secret
         validation_alias="DATABASE_URL",

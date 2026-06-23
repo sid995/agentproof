@@ -22,7 +22,6 @@ jobs:
         uses: astral-sh/setup-uv@v8.1.0
         with:
           version: "0.11.23"
-          python-version: "3.13"
           enable-cache: true
 
       - name: Install Python
@@ -40,22 +39,33 @@ jobs:
       - name: Run type checking
         run: make type-check
 
-      - name: Run tests
-        run: make test
-
       - name: Run Django system checks
         run: |
-          uv run python backend/manage.py makemigrations \
-          --check \
-          --dry-run \
-          --settings=agentproof_backend.config.settings.test
+          uv run python backend/manage.py check \
+            --settings=agentproof_backend.config.settings.test
 
-      - name: Valiudate OpenAPI schema
+      - name: Check for missing migrations
         run: |
-          uv file python backend/manage.py spectacular \
-          --fule docs/api/openapi.yml \
-          --validate \
-          --settings=agentproof_backend.config.settings.test
+          uv run python backend/manage.py makemigrations \
+            --check \
+            --dry-run \
+            --settings=agentproof_backend.config.settings.test
+
+      - name: Apply migrations
+        run: |
+          uv run python backend/manage.py migrate \
+            --noinput \
+            --settings=agentproof_backend.config.settings.test
+
+      - name: Validate OpenAPI schema
+        run: |
+          uv run python backend/manage.py spectacular \
+            --file docs/api/openapi.yml \
+            --validate \
+            --settings=agentproof_backend.config.settings.test
+
+      - name: Run tests
+        run: make test
 
       - name: Build SDK
         run: make build-sdk

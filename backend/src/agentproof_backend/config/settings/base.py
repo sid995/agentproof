@@ -36,6 +36,8 @@ INSTALLED_APPS = [
     # AgentProof applications
     "agentproof_backend.apps.accounts.apps.AccountsConfig",
     "agentproof_backend.apps.common.apps.CommonConfig",
+    "agentproof_backend.apps.organizations.apps.OrganizationsConfig",
+    "agentproof_backend.apps.audit.apps.AuditConfig",
 ]
 
 MIDDLEWARE = [
@@ -46,6 +48,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "agentproof_backend.apps.organizations.middleware.CurrentOrganizationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -84,16 +87,16 @@ AUTH_USER_MODEL = "accounts.User"
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        "NAME": ("django.contrib.auth.password_validation.UserAttributeSimilarityValidator"),
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
     },
     {
-        "NAME": ("django.contrib.auth.password_validation.MinimumLengthValidator"),
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
     },
     {
-        "NAME": ("django.contrib.auth.password_validation.CommonPasswordValidator"),
+        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
     },
     {
-        "NAME": ("django.contrib.auth.password_validation.NumericPasswordValidator"),
+        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
 
@@ -177,6 +180,10 @@ SPECTACULAR_SETTINGS = {
     "SCHEMA_PATH_PREFIX": r"/api/v[0-9]+",
     "COMPONENT_SPLIT_REQUEST": True,
     "SORT_OPERATIONS": True,
+    "ENUM_NAME_OVERRIDES": {
+        "InvitationRoleEnum": "agentproof_backend.apps.organizations.models.InvitationRole.choices",
+        "MembershipRoleEnum": "agentproof_backend.apps.organizations.models.MembershipRole.choices",
+    },
 }
 
 CELERY_BROKER_URL = ENV.celery_broker_url
@@ -198,6 +205,11 @@ CELERY_ENABLE_UTC = True
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 DEFAULT_FROM_EMAIL = "AgentProof <noreply@agentproof.local>"
+
+APP_BASE_URL = ENV.app_base_url
+LOGIN_URL = "/api-auth/login/"
+LOGIN_REDIRECT_URL = "/api/docs/"
+LOGOUT_REDIRECT_URL = "/api-auth/login/"
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024

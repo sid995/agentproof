@@ -4,7 +4,7 @@ import re
 import time
 import uuid
 from collections.abc import Awaitable, Callable
-from typing import cast
+from typing import Any, cast
 
 import structlog
 from asgiref.sync import iscoroutinefunction, markcoroutinefunction
@@ -42,6 +42,7 @@ class RequestIDMiddleware:
 
     def _sync_call(self, request: HttpRequest) -> HttpResponse:
         request_id = self._resolve_request_id(request)
+        cast(Any, request).request_id = request_id
         started_at = time.perf_counter()
 
         clear_contextvars()
@@ -82,6 +83,7 @@ class RequestIDMiddleware:
 
     async def _async_call(self, request: HttpRequest) -> HttpResponse:
         request_id = self._resolve_request_id(request)
+        cast(Any, request).request_id = request_id
         started_at = time.perf_counter()
 
         clear_contextvars()
