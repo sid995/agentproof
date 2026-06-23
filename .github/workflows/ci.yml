@@ -50,12 +50,12 @@ jobs:
           --dry-run \
           --settings=agentproof_backend.config.settings.test
 
-      - name: Valiudate OpenAPI schema
+      - name: Validate OpenAPI schema
         run: |
           uv file python backend/manage.py spectacular \
-          --fule docs/api/openapi.yml \
-          --validate \
-          --settings=agentproof_backend.config.settings.test
+            --file docs/api/openapi.yml \
+            --validate \
+            --settings=agentproof_backend.config.settings.test
 
       - name: Build SDK
         run: make build-sdk
