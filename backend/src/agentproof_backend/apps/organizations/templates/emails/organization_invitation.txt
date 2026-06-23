@@ -1,0 +1,12 @@
+You have been invited to join {{ invitation.organization.name }} on AgentProof.
+
+Role: {{ invitation.get_role_display }}
+Invited by: {{ invitation.invited_by.email }}
+
+Accept the invitation:
+
+{{ accept_url }}
+
+This invitation expires at {{ invitation.expires_at|date:"Y-m-d H:i:s T" }}.
+
+If you were not expecting this invitation, you can ignore this email.

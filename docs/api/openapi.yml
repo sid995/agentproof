@@ -4,6 +4,306 @@ info:
   version: 0.1.0
   description: Reliability, evaluation, observability, and governance API for AI applications.
 paths:
+  /api/v1/invitations/accept/:
+    post:
+      operationId: invitations_accept_create
+      description: Accept an organization invitation.
+      tags:
+      - invitations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvitationAcceptRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/InvitationAcceptRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/InvitationAcceptRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Membership'
+          description: ''
+  /api/v1/organizations/:
+    get:
+      operationId: organizations_list
+      description: List memberships or create an organization.
+      tags:
+      - organizations
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Membership'
+          description: ''
+    post:
+      operationId: organizations_create
+      description: List memberships or create an organization.
+      tags:
+      - organizations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OrganizationCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OrganizationCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Membership'
+          description: ''
+  /api/v1/organizations/{organization_id}/:
+    get:
+      operationId: organizations_retrieve
+      description: Return the currently selected organization.
+      parameters:
+      - in: path
+        name: organization_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - organizations
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
+  /api/v1/organizations/{organization_id}/invitations/:
+    get:
+      operationId: organizations_invitations_list
+      description: List or create organization invitations.
+      parameters:
+      - in: path
+        name: organization_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - organizations
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Invitation'
+          description: ''
+    post:
+      operationId: organizations_invitations_create
+      description: List or create organization invitations.
+      parameters:
+      - in: path
+        name: organization_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - organizations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvitationCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/InvitationCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/InvitationCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invitation'
+          description: ''
+  /api/v1/organizations/{organization_id}/invitations/{invitation_id}/revoke/:
+    post:
+      operationId: organizations_invitations_revoke_create
+      description: Revoke an unresolved invitation.
+      parameters:
+      - in: path
+        name: invitation_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: organization_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - organizations
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invitation'
+          description: ''
+  /api/v1/organizations/{organization_id}/members/:
+    get:
+      operationId: organizations_members_list
+      description: List members in the current organization.
+      parameters:
+      - in: path
+        name: organization_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - organizations
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Membership'
+          description: ''
+  /api/v1/organizations/{organization_id}/members/{membership_id}/:
+    patch:
+      operationId: organizations_members_partial_update
+      description: Update or remove one membership.
+      parameters:
+      - in: path
+        name: membership_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: organization_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - organizations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedMembershipUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedMembershipUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedMembershipUpdateRequest'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Membership'
+          description: ''
+    delete:
+      operationId: organizations_members_destroy
+      description: Update or remove one membership.
+      parameters:
+      - in: path
+        name: membership_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: organization_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - organizations
+      security:
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/organizations/{organization_id}/switch/:
+    post:
+      operationId: organizations_switch_create
+      description: Set an organization as the active session tenant.
+      parameters:
+      - in: path
+        name: organization_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - organizations
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Membership'
+          description: ''
+  /api/v1/organizations/current/:
+    get:
+      operationId: organizations_current_retrieve
+      description: Return the selected organization membership.
+      tags:
+      - organizations
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Membership'
+          description: ''
   /api/v1/status/:
     get:
       operationId: get_service_status
@@ -19,6 +319,207 @@ paths:
           description: ''
 components:
   schemas:
+    Invitation:
+      type: object
+      description: Invitation response representation.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+        role:
+          allOf:
+          - $ref: '#/components/schemas/InvitationRoleEnum'
+          readOnly: true
+        invited_by:
+          allOf:
+          - $ref: '#/components/schemas/UserSummary'
+          readOnly: true
+        expires_at:
+          type: string
+          format: date-time
+          readOnly: true
+        accepted_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        revoked_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - accepted_at
+      - created_at
+      - email
+      - expires_at
+      - id
+      - invited_by
+      - revoked_at
+      - role
+    InvitationAcceptRequest:
+      type: object
+      description: Accept an invitation using its plaintext token.
+      properties:
+        token:
+          type: string
+          minLength: 20
+          maxLength: 256
+      required:
+      - token
+    InvitationCreateRequest:
+      type: object
+      description: Create an organization invitation.
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+        role:
+          $ref: '#/components/schemas/InvitationRoleEnum'
+      required:
+      - email
+      - role
+    InvitationRoleEnum:
+      enum:
+      - administrator
+      - developer
+      - viewer
+      type: string
+      description: |-
+        * `administrator` - Administrator
+        * `developer` - Developer
+        * `viewer` - Viewer
+    Membership:
+      type: object
+      description: Organization membership representation.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        organization:
+          allOf:
+          - $ref: '#/components/schemas/Organization'
+          readOnly: true
+        user:
+          allOf:
+          - $ref: '#/components/schemas/UserSummary'
+          readOnly: true
+        role:
+          allOf:
+          - $ref: '#/components/schemas/MembershipRoleEnum'
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/StatusEnum'
+          readOnly: true
+        joined_at:
+          type: string
+          format: date-time
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - joined_at
+      - organization
+      - role
+      - status
+      - updated_at
+      - user
+    MembershipRoleEnum:
+      enum:
+      - owner
+      - administrator
+      - developer
+      - viewer
+      type: string
+      description: |-
+        * `owner` - Owner
+        * `administrator` - Administrator
+        * `developer` - Developer
+        * `viewer` - Viewer
+    Organization:
+      type: object
+      description: Organization response representation.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        slug:
+          type: string
+          readOnly: true
+          pattern: ^[-\w]+$
+        status:
+          allOf:
+          - $ref: '#/components/schemas/StatusEnum'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - name
+      - slug
+      - status
+      - updated_at
+    OrganizationCreateRequest:
+      type: object
+      description: Create-organization request.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 150
+        slug:
+          type: string
+          minLength: 1
+          maxLength: 63
+      required:
+      - name
+    PatchedMembershipUpdateRequest:
+      type: object
+      description: Update a membership role or status.
+      properties:
+        role:
+          $ref: '#/components/schemas/MembershipRoleEnum'
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+    StatusEnum:
+      enum:
+      - active
+      - suspended
+      type: string
+      description: |-
+        * `active` - Active
+        * `suspended` - Suspended
     StatusResponse:
       type: object
       description: Schema for the service status response.
@@ -33,3 +534,27 @@ components:
       - service
       - status
       - version
+    UserSummary:
+      type: object
+      description: Minimal member user representation.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+          title: Email address
+        display_name:
+          type: string
+          readOnly: true
+      required:
+      - display_name
+      - email
+      - id
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid
