@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     "agentproof_backend.apps.common.apps.CommonConfig",
     "agentproof_backend.apps.organizations.apps.OrganizationsConfig",
     "agentproof_backend.apps.audit.apps.AuditConfig",
+    "agentproof_backend.apps.projects.apps.ProjectsConfig",
 ]
 
 MIDDLEWARE = [
@@ -183,6 +184,8 @@ SPECTACULAR_SETTINGS = {
     "ENUM_NAME_OVERRIDES": {
         "InvitationRoleEnum": "agentproof_backend.apps.organizations.models.InvitationRole.choices",
         "MembershipRoleEnum": "agentproof_backend.apps.organizations.models.MembershipRole.choices",
+        "CaptureModeEnum": "agentproof_backend.apps.projects.models.CaptureMode.choices",
+        "EnvironmentTypeEnum": "agentproof_backend.apps.projects.models.EnvironmentType.choices",
     },
 }
 

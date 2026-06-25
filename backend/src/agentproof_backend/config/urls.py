@@ -58,4 +58,8 @@ urlpatterns = [
         SpectacularRedocView.as_view(url_name="api-schema"),
         name="api-redoc",
     ),
+    path(
+        "api/v1/",
+        include("agentproof_backend.apps.projects.urls"),
+    ),
 ]

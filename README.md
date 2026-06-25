@@ -33,6 +33,7 @@ make server-asgi
 ```
 
 ### Application endpoints:
+
 - Django admin: http://127.0.0.1:8000/admin/
 - Swagger UI: http://127.0.0.1:8000/api/docs/
 - OpenAPI schema: http://127.0.0.1:8000/api/schema/
@@ -65,3 +66,18 @@ Main endpoints:
 - `POST /api/v1/invitations/accept/`
 
 Invitation emails are printed to the console in local development.
+
+## Projects and environments
+
+Projects and environments are scoped to the active organization.
+
+Main endpoints:
+
+- `GET /api/v1/projects/`
+- `POST /api/v1/projects/`
+- `GET /api/v1/projects/{id}/`
+- `PATCH /api/v1/projects/{id}/`
+- `GET /api/v1/projects/{id}/environments/`
+- `POST /api/v1/projects/{id}/environments/`
+- `GET /api/v1/environments/{id}/`
+- `PATCH /api/v1/environments/{id}/`

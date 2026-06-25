@@ -73,7 +73,7 @@ class RequestIDMiddleware:
                 method=request.method,
                 path=request.path,
                 duration_ms=round(
-                    time.perf_counter() - started_at * 1_000,
+                    (time.perf_counter() - started_at) * 1_000,
                     2,
                 ),
             )
