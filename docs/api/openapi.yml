@@ -4,6 +4,60 @@ info:
   version: 0.1.0
   description: Reliability, evaluation, observability, and governance API for AI applications.
 paths:
+  /api/v1/environments/{environment_id}/:
+    get:
+      operationId: environments_retrieve
+      description: Retrieve or update an environment.
+      parameters:
+      - in: path
+        name: environment_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - environments
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Environment'
+          description: ''
+    patch:
+      operationId: environments_partial_update
+      description: Retrieve or update an environment.
+      parameters:
+      - in: path
+        name: environment_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - environments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedEnvironmentUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedEnvironmentUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedEnvironmentUpdateRequest'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Environment'
+          description: ''
   /api/v1/invitations/accept/:
     post:
       operationId: invitations_accept_create
@@ -304,6 +358,160 @@ paths:
               schema:
                 $ref: '#/components/schemas/Membership'
           description: ''
+  /api/v1/projects/:
+    get:
+      operationId: projects_list
+      description: List or create projects for the active organization.
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Project'
+          description: ''
+    post:
+      operationId: projects_create
+      description: List or create projects for the active organization.
+      tags:
+      - projects
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProjectCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProjectCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectCreationResponse'
+          description: ''
+  /api/v1/projects/{project_id}/:
+    get:
+      operationId: projects_retrieve
+      description: Retrieve or update a project
+      parameters:
+      - in: path
+        name: project_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+          description: ''
+    patch:
+      operationId: projects_partial_update
+      description: Retrieve or update a project
+      parameters:
+      - in: path
+        name: project_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedProjectUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedProjectUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedProjectUpdateRequest'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+          description: ''
+  /api/v1/projects/{project_id}/environments/:
+    get:
+      operationId: projects_environments_list
+      description: List or create environments under a project.
+      parameters:
+      - in: path
+        name: project_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Environment'
+          description: ''
+    post:
+      operationId: projects_environments_create
+      description: List or create environments under a project.
+      parameters:
+      - in: path
+        name: project_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnvironmentCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EnvironmentCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EnvironmentCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Environment'
+          description: ''
   /api/v1/status/:
     get:
       operationId: get_service_status
@@ -319,6 +527,128 @@ paths:
           description: ''
 components:
   schemas:
+    CaptureModeEnum:
+      enum:
+      - metadata_only
+      - redacted
+      - full
+      type: string
+      description: |-
+        * `metadata_only` - Metadata only
+        * `redacted` - Redacted
+        * `full` - Full
+    Environment:
+      type: object
+      description: Environment API representation.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        organization_id:
+          type: string
+          format: uuid
+          readOnly: true
+        project_id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        slug:
+          type: string
+          readOnly: true
+          pattern: ^[-\w]+$
+        environment_type:
+          allOf:
+          - $ref: '#/components/schemas/EnvironmentTypeEnum'
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/ResourceStatusEnum'
+          readOnly: true
+        capture_mode_override:
+          allOf:
+          - $ref: '#/components/schemas/CaptureModeEnum'
+          readOnly: true
+        retention_days_override:
+          type: integer
+          readOnly: true
+          nullable: true
+        effective_capture_mode:
+          type: string
+          readOnly: true
+        effective_retention_days:
+          type: integer
+          readOnly: true
+        created_by_id:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - capture_mode_override
+      - created_at
+      - created_by_id
+      - effective_capture_mode
+      - effective_retention_days
+      - environment_type
+      - id
+      - name
+      - organization_id
+      - project_id
+      - retention_days_override
+      - slug
+      - status
+      - updated_at
+    EnvironmentCreateRequest:
+      type: object
+      description: Environment creation request.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        slug:
+          type: string
+          minLength: 1
+          maxLength: 63
+          pattern: ^[-\w]+$
+        environment_type:
+          allOf:
+          - $ref: '#/components/schemas/EnvironmentTypeEnum'
+          default: custom
+        capture_mode_override:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/CaptureModeEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        retention_days_override:
+          type: integer
+          maximum: 3650
+          minimum: 1
+          nullable: true
+      required:
+      - name
+    EnvironmentTypeEnum:
+      enum:
+      - development
+      - staging
+      - production
+      - custom
+      type: string
+      description: |-
+        * `development` - Development
+        * `staging` - Staging
+        * `production` - Production
+        * `custom` - Custom
     Invitation:
       type: object
       description: Invitation response representation.
@@ -421,7 +751,7 @@ components:
           readOnly: true
         status:
           allOf:
-          - $ref: '#/components/schemas/StatusEnum'
+          - $ref: '#/components/schemas/OrganizationStatusEnum'
           readOnly: true
         joined_at:
           type: string
@@ -456,6 +786,9 @@ components:
         * `administrator` - Administrator
         * `developer` - Developer
         * `viewer` - Viewer
+    NullEnum:
+      enum:
+      - null
     Organization:
       type: object
       description: Organization response representation.
@@ -473,7 +806,7 @@ components:
           pattern: ^[-\w]+$
         status:
           allOf:
-          - $ref: '#/components/schemas/StatusEnum'
+          - $ref: '#/components/schemas/OrganizationStatusEnum'
           readOnly: true
         created_at:
           type: string
@@ -504,15 +837,7 @@ components:
           maxLength: 63
       required:
       - name
-    PatchedMembershipUpdateRequest:
-      type: object
-      description: Update a membership role or status.
-      properties:
-        role:
-          $ref: '#/components/schemas/MembershipRoleEnum'
-        status:
-          $ref: '#/components/schemas/StatusEnum'
-    StatusEnum:
+    OrganizationStatusEnum:
       enum:
       - active
       - suspended
@@ -520,6 +845,160 @@ components:
       description: |-
         * `active` - Active
         * `suspended` - Suspended
+    PatchedEnvironmentUpdateRequest:
+      type: object
+      description: Mutable environment configuration.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        environment_type:
+          $ref: '#/components/schemas/EnvironmentTypeEnum'
+        status:
+          $ref: '#/components/schemas/ResourceStatusEnum'
+        capture_mode_override:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/CaptureModeEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        retention_days_override:
+          type: integer
+          maximum: 3650
+          minimum: 1
+          nullable: true
+    PatchedMembershipUpdateRequest:
+      type: object
+      description: Update a membership role or status.
+      properties:
+        role:
+          $ref: '#/components/schemas/MembershipRoleEnum'
+        status:
+          $ref: '#/components/schemas/OrganizationStatusEnum'
+    PatchedProjectUpdateRequest:
+      type: object
+      description: Mutable project configuration.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 150
+        description:
+          type: string
+        status:
+          $ref: '#/components/schemas/ResourceStatusEnum'
+        capture_mode:
+          $ref: '#/components/schemas/CaptureModeEnum'
+        retention_days:
+          type: integer
+          maximum: 3650
+          minimum: 1
+    Project:
+      type: object
+      description: Project API representation.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        organization_id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        slug:
+          type: string
+          readOnly: true
+          pattern: ^[-\w]+$
+        description:
+          type: string
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/ResourceStatusEnum'
+          readOnly: true
+        capture_mode:
+          allOf:
+          - $ref: '#/components/schemas/CaptureModeEnum'
+          readOnly: true
+        retention_days:
+          type: integer
+          readOnly: true
+        created_by_id:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - capture_mode
+      - created_at
+      - created_by_id
+      - description
+      - id
+      - name
+      - organization_id
+      - retention_days
+      - slug
+      - status
+      - updated_at
+    ProjectCreateRequest:
+      type: object
+      description: Project creation request.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 150
+        slug:
+          type: string
+          minLength: 1
+          maxLength: 63
+          pattern: ^[-\w]+$
+        description:
+          type: string
+          default: ''
+        capture_mode:
+          allOf:
+          - $ref: '#/components/schemas/CaptureModeEnum'
+          default: redacted
+        retention_days:
+          type: integer
+          maximum: 3650
+          minimum: 1
+          default: 30
+      required:
+      - name
+    ProjectCreationResponse:
+      type: object
+      description: Project creation response with default environment.
+      properties:
+        project:
+          allOf:
+          - $ref: '#/components/schemas/Project'
+          readOnly: true
+        default_environment:
+          allOf:
+          - $ref: '#/components/schemas/Environment'
+          readOnly: true
+      required:
+      - default_environment
+      - project
+    ResourceStatusEnum:
+      enum:
+      - active
+      - archived
+      type: string
+      description: |-
+        * `active` - Active
+        * `archived` - Archived
     StatusResponse:
       type: object
       description: Schema for the service status response.

@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>{{ environment.name }}</title>
+</head>
+<body>
+<a href="{% url 'project-web:project-detail' environment.project.id %}">{{ environment.project.name }}</a>
+<h1>{{ environment.name }}</h1>
+<p>Type: {{ environment.environment_type }}</p>
+<p>Effective capture: {{ effective_capture_mode }}</p>
+<p>Effective retention: {{ effective_retention_days }} days</p>
+</body>
+</html>

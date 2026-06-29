@@ -57,7 +57,9 @@ class Organization(TimeStampedUUIDModel):
         db_index=True,
     )
     created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="created_organizations"
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="created_organizations",
     )
 
     class Meta:
