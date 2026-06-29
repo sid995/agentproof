@@ -71,6 +71,26 @@ Invitation emails are printed to the console in local development.
 
 Projects and environments are scoped to the active organization.
 
+Current Phase 4 work adds the project hierarchy that future API keys,
+telemetry, datasets, evaluations, and policies will attach to.
+
+Project behavior:
+
+- Owners and administrators create and update projects.
+- Each project belongs to the active organization.
+- Each project has a stable slug, lifecycle status, default capture mode,
+  default retention period, and creator.
+- Creating a project also creates a default development environment.
+
+Environment behavior:
+
+- Owners, administrators, and developers create and update environments.
+- Each environment belongs to one project and stores the organization directly
+  for tenant scoping.
+- Environment types are development, staging, production, and custom.
+- Environment capture and retention settings may override the project defaults.
+- Viewers have read-only access.
+
 Main endpoints:
 
 - `GET /api/v1/projects/`
@@ -81,3 +101,7 @@ Main endpoints:
 - `POST /api/v1/projects/{id}/environments/`
 - `GET /api/v1/environments/{id}/`
 - `PATCH /api/v1/environments/{id}/`
+
+Minimal server-rendered project pages are available under `/projects/`.
+
+Validation status: Phase 4 passes `make schema` and `make check`.

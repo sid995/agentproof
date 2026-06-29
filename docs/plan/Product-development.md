@@ -338,6 +338,32 @@ resource_id=resource_id,
 
 # Phase 4: Implement projects and environments
 
+## Status
+
+Complete on branch `phases/phase-4`.
+
+Backend, API, admin, minimal web pages, migration, OpenAPI, ADR, and tests are
+implemented. The validation gate is green:
+
+```bash
+make schema
+make check
+```
+
+Completed cleanup:
+
+* Align API, web views, serializers, and tests with the current service contract.
+* Keep project fields named `capture_mode` and
+  `retention_days`.
+* Use the `CreatedProject` response shape when project creation also creates
+  the default development environment.
+* Keep environment detail lookups tenant-scoped.
+* Regenerate or update migrations so they match the current models.
+* Remove stale or duplicate permission helpers outside the projects app.
+* Ensure direct environment records cannot silently mismatch their parent
+  project organization.
+* Run `make schema` and `make check`.
+
 ## Objective
 
 Create the hierarchy under which telemetry and evaluation data will live.
@@ -349,16 +375,38 @@ Create the hierarchy under which telemetry and evaluation data will live.
 
 ## Tasks
 
-1. Add project creation.
-2. Add environment creation.
-3. Add development, staging, production, and custom types.
-4. Add capture policies.
-5. Add retention configuration.
-6. Add project and environment selectors.
-7. Add permission checks.
-8. Add UI pages.
-9. Add API endpoints.
-10. Add audit events.
+1. Add project creation. Done.
+2. Add environment creation. Done.
+3. Add development, staging, production, and custom types. Done.
+4. Add capture policies. Done.
+5. Add retention configuration. Done.
+6. Add project and environment selectors. Done.
+7. Add permission checks. Done.
+8. Add UI pages. Done with minimal Django templates.
+9. Add API endpoints. Done.
+10. Add audit events. Done.
+
+## Implemented shape
+
+Projects:
+
+* Belong to one organization.
+* Have name, slug, description, lifecycle status, default capture mode, default
+  retention period, creator, and timestamps.
+* Are administered by owners and administrators.
+* Automatically create one development environment during project creation.
+
+Environments:
+
+* Belong to one organization and one project.
+* Have name, slug, environment type, lifecycle status, optional capture-mode
+  override, optional retention override, creator, and timestamps.
+* Are managed by owners, administrators, and developers.
+* Inherit project capture and retention defaults when no override is set.
+
+Read-only users:
+
+* Viewers can read project and environment data but cannot create or update it.
 
 ## Exit criteria
 
@@ -367,6 +415,16 @@ A user can create:
 organization → project → environment
 
 and all objects remain tenant-scoped.
+
+Additional Phase 4 exit criteria:
+
+* A project creation response includes both the project and the default
+  development environment.
+* Cross-tenant project and environment identifiers cannot bypass scoped
+  selectors.
+* OpenAPI schema includes project and environment endpoints without enum or URL
+  namespace warnings.
+* `make check` passes.
 
 ---
 

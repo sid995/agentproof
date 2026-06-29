@@ -361,7 +361,7 @@ paths:
   /api/v1/projects/:
     get:
       operationId: projects_list
-      description: List or create projects for the active organization
+      description: List or create projects for the active organization.
       tags:
       - projects
       security:
@@ -377,7 +377,7 @@ paths:
           description: ''
     post:
       operationId: projects_create
-      description: List or create projects for the active organization
+      description: List or create projects for the active organization.
       tags:
       - projects
       requestBody:
@@ -399,12 +399,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Project'
+                $ref: '#/components/schemas/ProjectCreationResponse'
           description: ''
   /api/v1/projects/{project_id}/:
     get:
       operationId: projects_retrieve
-      description: Retrieve or update a project.
+      description: Retrieve or update a project
       parameters:
       - in: path
         name: project_id
@@ -425,7 +425,7 @@ paths:
           description: ''
     patch:
       operationId: projects_partial_update
-      description: Retrieve or update a project.
+      description: Retrieve or update a project
       parameters:
       - in: path
         name: project_id
@@ -527,9 +527,6 @@ paths:
           description: ''
 components:
   schemas:
-    BlankEnum:
-      enum:
-      - ''
     CaptureModeEnum:
       enum:
       - metadata_only
@@ -542,9 +539,13 @@ components:
         * `full` - Full
     Environment:
       type: object
-      description: Environment response representation.
+      description: Environment API representation.
       properties:
         id:
+          type: string
+          format: uuid
+          readOnly: true
+        organization_id:
           type: string
           format: uuid
           readOnly: true
@@ -558,10 +559,14 @@ components:
         slug:
           type: string
           readOnly: true
-          pattern: ^[-a-zA-Z0-9_]+$
+          pattern: ^[-\w]+$
         environment_type:
           allOf:
           - $ref: '#/components/schemas/EnvironmentTypeEnum'
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/ResourceStatusEnum'
           readOnly: true
         capture_mode_override:
           allOf:
@@ -577,6 +582,9 @@ components:
         effective_retention_days:
           type: integer
           readOnly: true
+        created_by_id:
+          type: integer
+          readOnly: true
         created_at:
           type: string
           format: date-time
@@ -588,38 +596,43 @@ components:
       required:
       - capture_mode_override
       - created_at
+      - created_by_id
       - effective_capture_mode
       - effective_retention_days
       - environment_type
       - id
       - name
+      - organization_id
       - project_id
       - retention_days_override
       - slug
+      - status
       - updated_at
     EnvironmentCreateRequest:
       type: object
-      description: Create-environment request.
+      description: Environment creation request.
       properties:
         name:
           type: string
           minLength: 1
-          maxLength: 150
+          maxLength: 100
         slug:
           type: string
           minLength: 1
           maxLength: 63
+          pattern: ^[-\w]+$
         environment_type:
           allOf:
           - $ref: '#/components/schemas/EnvironmentTypeEnum'
-          default: development
+          default: custom
         capture_mode_override:
-          default: ''
+          nullable: true
           oneOf:
           - $ref: '#/components/schemas/CaptureModeEnum'
-          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
         retention_days_override:
           type: integer
+          maximum: 3650
           minimum: 1
           nullable: true
       required:
@@ -738,7 +751,7 @@ components:
           readOnly: true
         status:
           allOf:
-          - $ref: '#/components/schemas/StatusEnum'
+          - $ref: '#/components/schemas/OrganizationStatusEnum'
           readOnly: true
         joined_at:
           type: string
@@ -773,6 +786,9 @@ components:
         * `administrator` - Administrator
         * `developer` - Developer
         * `viewer` - Viewer
+    NullEnum:
+      enum:
+      - null
     Organization:
       type: object
       description: Organization response representation.
@@ -790,7 +806,7 @@ components:
           pattern: ^[-\w]+$
         status:
           allOf:
-          - $ref: '#/components/schemas/StatusEnum'
+          - $ref: '#/components/schemas/OrganizationStatusEnum'
           readOnly: true
         created_at:
           type: string
@@ -821,22 +837,34 @@ components:
           maxLength: 63
       required:
       - name
+    OrganizationStatusEnum:
+      enum:
+      - active
+      - suspended
+      type: string
+      description: |-
+        * `active` - Active
+        * `suspended` - Suspended
     PatchedEnvironmentUpdateRequest:
       type: object
-      description: Update-environment request.
+      description: Mutable environment configuration.
       properties:
         name:
           type: string
           minLength: 1
-          maxLength: 150
+          maxLength: 100
         environment_type:
           $ref: '#/components/schemas/EnvironmentTypeEnum'
+        status:
+          $ref: '#/components/schemas/ResourceStatusEnum'
         capture_mode_override:
+          nullable: true
           oneOf:
           - $ref: '#/components/schemas/CaptureModeEnum'
-          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
         retention_days_override:
           type: integer
+          maximum: 3650
           minimum: 1
           nullable: true
     PatchedMembershipUpdateRequest:
@@ -846,10 +874,10 @@ components:
         role:
           $ref: '#/components/schemas/MembershipRoleEnum'
         status:
-          $ref: '#/components/schemas/StatusEnum'
+          $ref: '#/components/schemas/OrganizationStatusEnum'
     PatchedProjectUpdateRequest:
       type: object
-      description: Update-project request.
+      description: Mutable project configuration.
       properties:
         name:
           type: string
@@ -857,16 +885,23 @@ components:
           maxLength: 150
         description:
           type: string
+        status:
+          $ref: '#/components/schemas/ResourceStatusEnum'
         capture_mode:
           $ref: '#/components/schemas/CaptureModeEnum'
         retention_days:
           type: integer
+          maximum: 3650
           minimum: 1
     Project:
       type: object
-      description: Project response representation.
+      description: Project API representation.
       properties:
         id:
+          type: string
+          format: uuid
+          readOnly: true
+        organization_id:
           type: string
           format: uuid
           readOnly: true
@@ -876,15 +911,22 @@ components:
         slug:
           type: string
           readOnly: true
-          pattern: ^[-a-zA-Z0-9_]+$
+          pattern: ^[-\w]+$
         description:
           type: string
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/ResourceStatusEnum'
           readOnly: true
         capture_mode:
           allOf:
           - $ref: '#/components/schemas/CaptureModeEnum'
           readOnly: true
         retention_days:
+          type: integer
+          readOnly: true
+        created_by_id:
           type: integer
           readOnly: true
         created_at:
@@ -898,15 +940,18 @@ components:
       required:
       - capture_mode
       - created_at
+      - created_by_id
       - description
       - id
       - name
+      - organization_id
       - retention_days
       - slug
+      - status
       - updated_at
     ProjectCreateRequest:
       type: object
-      description: Create-project request.
+      description: Project creation request.
       properties:
         name:
           type: string
@@ -916,26 +961,44 @@ components:
           type: string
           minLength: 1
           maxLength: 63
+          pattern: ^[-\w]+$
         description:
           type: string
+          default: ''
         capture_mode:
           allOf:
           - $ref: '#/components/schemas/CaptureModeEnum'
           default: redacted
         retention_days:
           type: integer
+          maximum: 3650
           minimum: 1
           default: 30
       required:
       - name
-    StatusEnum:
+    ProjectCreationResponse:
+      type: object
+      description: Project creation response with default environment.
+      properties:
+        project:
+          allOf:
+          - $ref: '#/components/schemas/Project'
+          readOnly: true
+        default_environment:
+          allOf:
+          - $ref: '#/components/schemas/Environment'
+          readOnly: true
+      required:
+      - default_environment
+      - project
+    ResourceStatusEnum:
       enum:
       - active
-      - suspended
+      - archived
       type: string
       description: |-
         * `active` - Active
-        * `suspended` - Suspended
+        * `archived` - Archived
     StatusResponse:
       type: object
       description: Schema for the service status response.

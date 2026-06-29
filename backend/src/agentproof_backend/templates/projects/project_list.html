@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Projects</title>
+  </head>
+  <body>
+    <h1>Projects</h1>
+
+    <ul>
+      {% for project in projects %}
+        <li>
+          <a href="{% url 'project-web:project-detail' project.id %}">{{ project.name }}</a>
+          <span>{{ project.capture_mode }}</span>
+          <span>{{ project.retention_days }} days</span>
+        </li>
+      {% empty %}
+        <li>No projects yet.</li>
+      {% endfor %}
+    </ul>
+
+    {% if can_manage %}
+      <h2>Create project</h2>
+      <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Create</button>
+      </form>
+    {% endif %}
+  </body>
+</html>

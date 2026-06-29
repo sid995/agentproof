@@ -11,7 +11,7 @@ from agentproof_backend.apps.audit.context import AuditContext
 from agentproof_backend.apps.audit.models import AuditEvent
 from agentproof_backend.apps.organizations.constants import ACTIVE_ORGANIZATION_SESSION_KEY
 from agentproof_backend.apps.organizations.models import MembershipRole
-from agentproof_backend.apps.projects.exceptions import ProjectConflict, ProjectPermissionDenied
+from agentproof_backend.apps.projects.exceptions import ProjectPermissionDenied
 from agentproof_backend.apps.projects.models import CaptureMode, Environment, EnvironmentType, Project
 from agentproof_backend.apps.projects.services import (
     create_environment,
@@ -58,7 +58,7 @@ def create_test_project(
         capture_mode=CaptureMode.REDACTED,
         retention_days=30,
         audit_context=AUDIT_CONTEXT,
-    )
+    ).project
 
 
 def create_test_environment(
@@ -76,7 +76,7 @@ def create_test_environment(
         name=name,
         requested_slug=slug,
         environment_type=EnvironmentType.PRODUCTION,
-        capture_mode_override="",
+        capture_mode_override=None,
         retention_days_override=None,
         audit_context=AUDIT_CONTEXT,
     )
@@ -99,20 +99,19 @@ def test_owner_can_create_project_and_audit_event() -> None:
     ).exists()
 
 
-def test_developer_can_create_project() -> None:
+def test_developer_cannot_create_project() -> None:
     owner = create_user(email="owner@example.com")
     developer = create_user(email="developer@example.com")
     organization, _membership = create_test_organization(owner=owner)
     add_member(organization=organization, user=developer, role=MembershipRole.DEVELOPER)
 
-    project = create_test_project(
-        actor=developer,
-        organization=organization,
-        name="Developer Project",
-        slug="developer-project",
-    )
-
-    assert project.organization == organization
+    with pytest.raises(ProjectPermissionDenied):
+        create_test_project(
+            actor=developer,
+            organization=organization,
+            name="Developer Project",
+            slug="developer-project",
+        )
 
 
 def test_viewer_cannot_create_project() -> None:
@@ -138,18 +137,19 @@ def test_project_slug_can_repeat_across_organizations() -> None:
     assert first_project.organization != second_project.organization
 
 
-def test_project_slug_is_unique_inside_organization() -> None:
+def test_project_slug_conflicts_get_available_suffix_inside_organization() -> None:
     owner = create_user(email="owner@example.com")
     organization, _membership = create_test_organization(owner=owner)
-    create_test_project(actor=owner, organization=organization, slug="duplicate")
+    first_project = create_test_project(actor=owner, organization=organization, slug="duplicate")
+    second_project = create_test_project(
+        actor=owner,
+        organization=organization,
+        name="Duplicate",
+        slug="duplicate",
+    )
 
-    with pytest.raises(ProjectConflict):
-        create_test_project(
-            actor=owner,
-            organization=organization,
-            name="Duplicate",
-            slug="duplicate",
-        )
+    assert first_project.slug == "duplicate"
+    assert second_project.slug.startswith("duplicate-")
 
 
 def test_project_update_records_audit_event() -> None:
@@ -163,6 +163,7 @@ def test_project_update_records_audit_event() -> None:
         project_id=project.id,
         name="Updated Agent",
         description="Updated description",
+        status=None,
         capture_mode=CaptureMode.FULL,
         retention_days=14,
         audit_context=AUDIT_CONTEXT,
@@ -230,8 +231,11 @@ def test_project_create_api_derives_organization_from_active_tenant() -> None:
     )
 
     assert response.status_code == 201
-    project = Project.objects.get(id=response.json()["id"])
+    response_data = response.json()
+    project = Project.objects.get(id=response_data["project"]["id"])
     assert project.organization == organization
+    assert response_data["default_environment"]["project_id"] == str(project.id)
+    assert response_data["default_environment"]["slug"] == "development"
 
 
 def test_viewer_can_read_but_not_create_project_api() -> None:
@@ -274,22 +278,25 @@ def test_developer_can_create_environment() -> None:
     ).exists()
 
 
-def test_environment_slug_is_unique_per_project() -> None:
+def test_environment_slug_conflicts_get_available_suffix_per_project() -> None:
     owner = create_user(email="owner@example.com")
     organization, _membership = create_test_organization(owner=owner)
     first_project = create_test_project(actor=owner, organization=organization, name="First", slug="first")
     second_project = create_test_project(actor=owner, organization=organization, name="Second", slug="second")
 
-    create_test_environment(actor=owner, organization=organization, project=first_project, slug="production")
-
-    with pytest.raises(ProjectConflict):
-        create_test_environment(
-            actor=owner,
-            organization=organization,
-            project=first_project,
-            name="Duplicate Production",
-            slug="production",
-        )
+    first_environment = create_test_environment(
+        actor=owner,
+        organization=organization,
+        project=first_project,
+        slug="production",
+    )
+    duplicate_environment = create_test_environment(
+        actor=owner,
+        organization=organization,
+        project=first_project,
+        name="Duplicate Production",
+        slug="production",
+    )
 
     second_environment = create_test_environment(
         actor=owner,
@@ -297,6 +304,8 @@ def test_environment_slug_is_unique_per_project() -> None:
         project=second_project,
         slug="production",
     )
+    assert first_environment.slug == "production"
+    assert duplicate_environment.slug.startswith("production-")
     assert second_environment.slug == "production"
 
 
@@ -307,16 +316,15 @@ def test_environment_cannot_point_to_mismatched_organization_at_database_level()
     second_organization, _membership = create_test_organization(owner=second_owner, name="Second Org")
     second_project = create_test_project(actor=second_owner, organization=second_organization)
 
-    # This documents a current hardening gap: the service prevents this, but the model does not.
-    environment = Environment.objects.create(
-        organization=first_organization,
-        project=second_project,
-        name="Invalid",
-        slug="invalid",
-        environment_type=EnvironmentType.CUSTOM,
-    )
-
-    assert environment.organization != environment.project.organization
+    with pytest.raises(ValueError, match="Environment organization must match"):
+        Environment.objects.create(
+            organization=first_organization,
+            project=second_project,
+            name="Invalid",
+            slug="invalid",
+            environment_type=EnvironmentType.CUSTOM,
+            created_by=first_owner,
+        )
 
 
 def test_environment_cannot_be_created_for_cross_tenant_project_api() -> None:
@@ -362,8 +370,9 @@ def test_environment_list_api_is_scoped_to_project() -> None:
     response = client.get(f"/api/v1/projects/{first_project.id}/environments/")
 
     assert response.status_code == 200
-    assert len(response.json()) == 1
-    assert response.json()[0]["id"] == str(first_environment.id)
+    response_environment_ids = {environment["id"] for environment in response.json()}
+    assert str(first_environment.id) in response_environment_ids
+    assert all(environment["project_id"] == str(first_project.id) for environment in response.json())
 
 
 def test_environment_create_api_returns_effective_configuration() -> None:
@@ -399,12 +408,15 @@ def test_environment_update_records_audit_event() -> None:
     updated = update_environment(
         actor=owner,
         organization=organization,
+        project_id=project.id,
         environment_id=environment.id,
         name="Prod",
         environment_type=EnvironmentType.PRODUCTION,
+        status=None,
+        capture_mode_override_supplied=True,
         capture_mode_override=CaptureMode.FULL,
+        retention_days_override_supplied=True,
         retention_days_override=7,
-        clear_retention_days_override=False,
         audit_context=AUDIT_CONTEXT,
     )
 
@@ -484,4 +496,65 @@ def test_database_prevents_duplicate_environment_slug_inside_project() -> None:
             name="Duplicate",
             slug="production",
             environment_type=EnvironmentType.PRODUCTION,
+            created_by=owner,
         )
+
+
+def test_project_list_page_renders_projects() -> None:
+    owner = create_user(email="owner@example.com")
+    organization, _membership = create_test_organization(owner=owner)
+    project = create_test_project(actor=owner, organization=organization)
+
+    client = authenticated_client(owner)
+    set_active_organization(client=client, organization_id=organization.id)
+
+    response = client.get("/projects/")
+
+    assert response.status_code == 200
+    assert project.name.encode() in response.content
+
+
+def test_project_detail_page_renders_environments() -> None:
+    owner = create_user(email="owner@example.com")
+    organization, _membership = create_test_organization(owner=owner)
+    project = create_test_project(actor=owner, organization=organization)
+    environment = create_test_environment(actor=owner, organization=organization, project=project)
+
+    client = authenticated_client(owner)
+    set_active_organization(client=client, organization_id=organization.id)
+
+    response = client.get(f"/projects/{project.id}/")
+
+    assert response.status_code == 200
+    assert environment.name.encode() in response.content
+
+
+def test_environment_detail_page_renders_effective_settings() -> None:
+    owner = create_user(email="owner@example.com")
+    organization, _membership = create_test_organization(owner=owner)
+    project = create_test_project(actor=owner, organization=organization)
+    environment = create_test_environment(actor=owner, organization=organization, project=project)
+
+    client = authenticated_client(owner)
+    set_active_organization(client=client, organization_id=organization.id)
+
+    response = client.get(f"/projects/environments/{environment.id}/")
+
+    assert response.status_code == 200
+    assert b"Effective capture" in response.content
+    assert b"Effective retention" in response.content
+
+
+def test_viewer_project_list_page_hides_create_form() -> None:
+    owner = create_user(email="owner@example.com")
+    viewer = create_user(email="viewer@example.com")
+    organization, _membership = create_test_organization(owner=owner)
+    add_member(organization=organization, user=viewer, role=MembershipRole.VIEWER)
+
+    client = authenticated_client(viewer)
+    set_active_organization(client=client, organization_id=organization.id)
+
+    response = client.get("/projects/")
+
+    assert response.status_code == 200
+    assert b"Create project" not in response.content

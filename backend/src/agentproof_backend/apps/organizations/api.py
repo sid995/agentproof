@@ -63,15 +63,15 @@ from agentproof_backend.apps.organizations.services import (
 
 def authenticated_user(request: Request) -> User:
     """Return the authenticated custom user."""
-    if not isinstance(request.user, User):
+    user = request.user
+
+    if not isinstance(user, User):
         raise PermissionDenied("Authentication is required.")
 
-    return request.user
+    return user
 
 
-def current_organization(
-    request: Request,
-) -> Organization:
+def current_organization(request: Request) -> Organization:
     """Return the organization resolved by middleware."""
     organization = getattr(
         request,
@@ -139,9 +139,7 @@ class OrganizationListCreateAPIView(APIView):
 
     permission_classes = (IsAuthenticated,)
 
-    @extend_schema(
-        responses=MembershipSerializer(many=True),
-    )
+    @extend_schema(responses=MembershipSerializer(many=True))
     def get(self, request: Request) -> Response:
         user = authenticated_user(request)
 

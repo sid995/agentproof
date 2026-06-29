@@ -184,8 +184,10 @@ SPECTACULAR_SETTINGS = {
     "ENUM_NAME_OVERRIDES": {
         "InvitationRoleEnum": "agentproof_backend.apps.organizations.models.InvitationRole.choices",
         "MembershipRoleEnum": "agentproof_backend.apps.organizations.models.MembershipRole.choices",
+        "OrganizationStatusEnum": "agentproof_backend.apps.organizations.models.OrganizationStatus.choices",
         "CaptureModeEnum": "agentproof_backend.apps.projects.models.CaptureMode.choices",
         "EnvironmentTypeEnum": "agentproof_backend.apps.projects.models.EnvironmentType.choices",
+        "ResourceStatusEnum": "agentproof_backend.apps.projects.models.ResourceStatus.choices",
     },
 }
 

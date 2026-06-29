@@ -6,17 +6,29 @@ from rest_framework.views import APIView
 
 from agentproof_backend.apps.organizations.models import Membership, MembershipRole
 
+PROJECT_RESOURCE_MANAGER_ROLES = {
+    MembershipRole.OWNER,
+    MembershipRole.ADMINISTRATOR,
+    MembershipRole.DEVELOPER,
+}
 
-class CanManageProjects(BasePermission):
-    """Allow owners, administrators, and developers to manage projects"""
+PROJECT_ADMIN_ROLES = {MembershipRole.OWNER, MembershipRole.ADMINISTRATOR}
 
-    message = "Owner, administrator, or developer access is required"
+
+class HasMembershipRole(BasePermission):
+    required_roles: frozenset[str] = frozenset()
+    message = "You do not have permission to perform this action."
 
     def has_permission(self, request: Request, _view: APIView) -> bool:
         membership = getattr(request, "organization_membership", None)
+        return isinstance(membership, Membership) and membership.role in self.required_roles
 
-        return isinstance(membership, Membership) and membership.role in {
-            MembershipRole.OWNER,
-            MembershipRole.ADMINISTRATOR,
-            MembershipRole.DEVELOPER,
-        }
+
+class CanManageProjectResources(HasMembershipRole):
+    required_roles = frozenset(PROJECT_RESOURCE_MANAGER_ROLES)
+    message = "Owner, administrator, or developer access is required."
+
+
+class CanAdministerProjects(HasMembershipRole):
+    required_roles = frozenset(PROJECT_ADMIN_ROLES)
+    message = "Owner or administrator access is required."

@@ -62,4 +62,5 @@ urlpatterns = [
         "api/v1/",
         include("agentproof_backend.apps.projects.urls"),
     ),
+    path("projects/", include("agentproof_backend.apps.projects.web_urls"), name="project-web"),
 ]

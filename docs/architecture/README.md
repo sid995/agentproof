@@ -709,8 +709,14 @@ Fields:
 * Name
 * Slug
 * Description
+* Lifecycle status
 * Default capture mode
 * Default retention period
+* Creator
+
+Project creation creates a default development environment so a newly created
+project can immediately receive environment-scoped configuration and, later,
+API keys and telemetry.
 
 ### FR-PROJ-002: Create environment
 
@@ -724,6 +730,29 @@ Supported environment types:
 * Custom
 
 Environment names must be unique within a project.
+
+Fields:
+
+* Name
+* Slug
+* Environment type
+* Lifecycle status
+* Optional capture-mode override
+* Optional retention override
+* Creator
+
+When an environment has no capture or retention override, it inherits the
+project default.
+
+### FR-PROJ-003: Project and environment authorization
+
+Priority: P0
+
+Owners and administrators may create and update projects.
+
+Owners, administrators, and developers may create and update environments.
+
+Viewers may read project and environment records but may not mutate them.
 
 ## 13.3 API keys
 
@@ -1489,14 +1518,19 @@ Fields:
 * name
 * slug
 * description
+* status
 * capture_mode
 * retention_days
+* created_by_id
 * created_at
 * updated_at
 
 Constraint:
 
 * Unique organization and slug pair
+* Status must be valid.
+* Default capture mode must be valid.
+* Default retention must be between 1 and 3,650 days.
 
 ### Environment
 
@@ -1508,13 +1542,23 @@ Fields:
 * name
 * slug
 * environment_type
+* status
 * capture_mode_override
 * retention_days_override
+* created_by_id
 * created_at
+* updated_at
 
 Constraint:
 
 * Unique project and slug pair
+* Environment type must be valid.
+* Status must be valid.
+* Capture override must be empty or a valid capture mode.
+* Retention override must be empty or between 1 and 3,650 days.
+
+Application services must prevent an environment organization from differing
+from the parent project organization.
 
 ## 16.3 API keys
 
@@ -1973,7 +2017,22 @@ Authentication:
 * POST /api/v1/projects
 * GET /api/v1/projects
 * GET /api/v1/projects/{project_id}
+* PATCH /api/v1/projects/{project_id}
 * POST /api/v1/projects/{project_id}/environments
+* GET /api/v1/projects/{project_id}/environments
+* GET /api/v1/environments/{environment_id}
+* PATCH /api/v1/environments/{environment_id}
+
+Project creation returns the created project and its automatically created
+development environment.
+
+Minimal server-rendered project pages are exposed under:
+
+* GET /projects/
+* POST /projects/
+* GET /projects/{project_id}/
+* POST /projects/{project_id}/
+* GET /projects/environments/{environment_id}/
 
 ### API keys
 
