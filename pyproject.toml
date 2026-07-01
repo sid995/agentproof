@@ -4,6 +4,7 @@ version = "0.1.0"
 requires-python = ">=3.13"
 dependencies = [
     "celery-types>=0.26.0",
+    "pyrefly>=0.60.0",
 ]
 
 [tool.uv.workspace]

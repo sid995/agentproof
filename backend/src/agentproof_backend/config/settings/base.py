@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     "agentproof_backend.apps.organizations.apps.OrganizationsConfig",
     "agentproof_backend.apps.audit.apps.AuditConfig",
     "agentproof_backend.apps.projects.apps.ProjectsConfig",
+    "agentproof_backend.apps.api_keys.apps.APIKeysConfig",
 ]
 
 MIDDLEWARE = [
@@ -171,6 +172,9 @@ REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": ("rest_framework.pagination.PageNumberPagination"),
     "PAGE_SIZE": 50,
     "EXCEPTION_HANDLER": ("agentproof_backend.apps.common.exceptions.api_exception_handler"),
+    "DEFAULT_THROTTLE_RATES": {
+        "api_key": "60/minute",  # pragma: allowlist secret
+    },
 }
 
 SPECTACULAR_SETTINGS = {
@@ -188,6 +192,7 @@ SPECTACULAR_SETTINGS = {
         "CaptureModeEnum": "agentproof_backend.apps.projects.models.CaptureMode.choices",
         "EnvironmentTypeEnum": "agentproof_backend.apps.projects.models.EnvironmentType.choices",
         "ResourceStatusEnum": "agentproof_backend.apps.projects.models.ResourceStatus.choices",
+        "APIKeyScopeEnum": "agentproof_backend.apps.api_keys.models.APIKeyScope.choices",  # pragma: allowlist secret
     },
 }
 

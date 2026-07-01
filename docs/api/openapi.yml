@@ -4,6 +4,28 @@ info:
   version: 0.1.0
   description: Reliability, evaluation, observability, and governance API for AI applications.
 paths:
+  /api/v1/api-keys/{api_key_id}/revoke/:
+    post:
+      operationId: api_keys_revoke_create
+      description: Revoke an API key.
+      parameters:
+      - in: path
+        name: api_key_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api-keys
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIKey'
+          description: ''
   /api/v1/environments/{environment_id}/:
     get:
       operationId: environments_retrieve
@@ -57,6 +79,86 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Environment'
+          description: ''
+  /api/v1/environments/{environment_id}/api-keys/:
+    get:
+      operationId: environments_api_keys_list
+      description: List or create API keys for an environment
+      parameters:
+      - in: path
+        name: environment_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - environments
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/APIKey'
+          description: ''
+    post:
+      operationId: environments_api_keys_create
+      description: List or create API keys for an environment
+      parameters:
+      - in: path
+        name: environment_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - environments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIKeyCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/APIKeyCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/APIKeyCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIKeyCreationResponse'
+          description: ''
+  /api/v1/environments/{environment_id}/auth-check/:
+    post:
+      operationId: environments_auth_check_create
+      description: Minimal protected endpoint proving API-key auth works.
+      parameters:
+      - in: path
+        name: environment_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - environments
+      security:
+      - EnvironmentAPIKeyAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIKeyAuthCheck'
           description: ''
   /api/v1/invitations/accept/:
     post:
@@ -527,6 +629,146 @@ paths:
           description: ''
 components:
   schemas:
+    APIKey:
+      type: object
+      description: API key representation that never exposes hash or plaintext
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        organization_id:
+          type: string
+          format: uuid
+          readOnly: true
+        project_id:
+          type: string
+          format: uuid
+          readOnly: true
+        environment_id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        prefix:
+          type: string
+          readOnly: true
+        scopes:
+          readOnly: true
+        created_by_id:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        expires_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        revoked_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        last_used_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+      required:
+      - created_at
+      - created_by_id
+      - environment_id
+      - expires_at
+      - id
+      - last_used_at
+      - name
+      - organization_id
+      - prefix
+      - project_id
+      - revoked_at
+      - scopes
+      - updated_at
+    APIKeyAuthCheck:
+      type: object
+      properties:
+        status:
+          type: string
+        organization_id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        environment_id:
+          type: string
+          format: uuid
+        scopes:
+          type: array
+          items:
+            type: string
+      required:
+      - environment_id
+      - organization_id
+      - project_id
+      - scopes
+      - status
+    APIKeyCreateRequest:
+      type: object
+      description: API key creation request
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        scopes:
+          type: array
+          items:
+            $ref: '#/components/schemas/APIKeyScopeEnum'
+          default:
+          - traces:write
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - name
+    APIKeyCreationResponse:
+      type: object
+      description: Serialization response to API key creation
+      properties:
+        api_key:
+          type: string
+          readOnly: true
+        record:
+          allOf:
+          - $ref: '#/components/schemas/APIKey'
+          readOnly: true
+      required:
+      - api_key
+      - record
+    APIKeyScopeEnum:
+      enum:
+      - traces:write
+      - traces:read
+      - evaluations:run
+      - datasets:read
+      - ci:read
+      type: string
+      description: |-
+        * `traces:write` - Write traces
+        * `traces:read` - Read traces
+        * `evaluations:run` - Run evaluations
+        * `datasets:read` - Read datasets
+        * `ci:read` - Read CI data
     CaptureModeEnum:
       enum:
       - metadata_only
@@ -1033,6 +1275,10 @@ components:
       - email
       - id
   securitySchemes:
+    EnvironmentAPIKeyAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: AgentProof API key
     cookieAuth:
       type: apiKey
       in: cookie
