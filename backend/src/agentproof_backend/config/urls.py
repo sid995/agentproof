@@ -15,6 +15,7 @@ from agentproof_backend.apps.common.views import (
 )
 
 urlpatterns = [
+    # API URL
     path(
         "admin/",
         admin.site.urls,
@@ -62,5 +63,14 @@ urlpatterns = [
         "api/v1/",
         include("agentproof_backend.apps.projects.urls"),
     ),
-    path("projects/", include("agentproof_backend.apps.projects.web_urls"), name="project-web"),
+    path(
+        "api/v1/",
+        include("agentproof_backend.apps.api_keys.urls"),
+    ),
+    # Web URL
+    path(
+        "projects/",
+        include("agentproof_backend.apps.projects.web_urls"),
+        name="project-web",
+    ),
 ]
