@@ -71,8 +71,8 @@ Invitation emails are printed to the console in local development.
 
 Projects and environments are scoped to the active organization.
 
-Current Phase 4 work adds the project hierarchy that future API keys,
-telemetry, datasets, evaluations, and policies will attach to.
+The project hierarchy is the ownership boundary that API keys, telemetry,
+datasets, evaluations, and policies attach to.
 
 Project behavior:
 
@@ -105,3 +105,29 @@ Main endpoints:
 Minimal server-rendered project pages are available under `/projects/`.
 
 Validation status: Phase 4 passes `make schema` and `make check`.
+
+## API keys
+
+API keys are scoped to one environment and authenticate SDK or ingestion-style
+requests without reusing browser sessions.
+
+API key behavior:
+
+- Owners, administrators, and developers create and revoke keys.
+- Viewers can list key metadata but cannot create or revoke keys.
+- Key values use the `ap_live_<prefix>_<secret>` format.
+- The plaintext key is returned only once when the key is created.
+- Only the public prefix and a secure hash are stored.
+- Revoked, expired, wrong-environment, and wrong-scope keys are rejected.
+- `last_used_at` is updated outside the authentication critical path.
+
+Main endpoints:
+
+- `GET /api/v1/environments/{id}/api-keys/`
+- `POST /api/v1/environments/{id}/api-keys/`
+- `POST /api/v1/api-keys/{id}/revoke/`
+- `POST /api/v1/environments/{id}/auth-check/`
+
+Validation status: Phase 5 API-key management and authentication checks are
+covered by `backend/tests/test_api_keys.py`; refresh `make schema` after API
+changes and run `make check` before marking the phase complete.

@@ -430,6 +430,10 @@ Additional Phase 4 exit criteria:
 
 # Phase 5: Build secure API keys
 
+Status: Implemented at the management and authentication-check layer. Final
+phase validation still requires a fresh `make schema` and `make check` run after
+the latest documentation/API changes.
+
 ## Objective
 
 Authenticate SDK and ingestion requests safely.
@@ -449,6 +453,30 @@ Authenticate SDK and ingestion requests safely.
 11. Update last-used timestamp outside the critical request path.
 12. Add audit events.
 
+## Current implementation
+
+* Environment-scoped API keys live in the `api_keys` app.
+* Key values use the `ap_live_<prefix>_<secret>` format.
+* Creation returns plaintext once and stores only the public prefix plus a
+  Django password hash of the secret.
+* Keys carry organization, project, environment, scopes, creator, expiration,
+  revocation, and last-used metadata.
+* Browser-authenticated management endpoints list, create, and revoke keys.
+* Bearer-token authentication validates presented keys for an environment and
+  required scope.
+* Revocation, expiration, wrong environment, wrong scope, and malformed keys are
+  rejected.
+* Per-key throttling uses the public key prefix.
+* `last_used_at` is updated asynchronously through Celery.
+* Creation and revocation write audit events without storing plaintext secrets.
+
+Implemented endpoints:
+
+* `GET /api/v1/environments/{environment_id}/api-keys/`
+* `POST /api/v1/environments/{environment_id}/api-keys/`
+* `POST /api/v1/api-keys/{api_key_id}/revoke/`
+* `POST /api/v1/environments/{environment_id}/auth-check/`
+
 ## Suggested scopes
 
 * traces:write
@@ -467,6 +495,18 @@ Authenticate SDK and ingestion requests safely.
 * Prefix collision is handled.
 * Timing-safe verification function is used.
 * Key value never appears in logs.
+
+Current test coverage lives in `backend/tests/test_api_keys.py` and covers
+hashed storage, one-time plaintext API responses, audit events, revocation,
+expiration, wrong environment, wrong scope, prefix-collision retry/failure,
+viewer permissions, revoke behavior, and bearer auth-check behavior.
+
+## Remaining boundary
+
+Phase 5 establishes the API-key security primitive and an auth-check endpoint.
+Actual trace ingestion endpoints are part of the next ingestion phase and should
+reuse `EnvironmentAPIKeyAuthentication` with the required scope for each write
+path.
 
 ## Python concepts practised
 

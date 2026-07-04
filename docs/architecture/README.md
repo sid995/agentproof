@@ -2036,9 +2036,10 @@ Minimal server-rendered project pages are exposed under:
 
 ### API keys
 
-* POST /api/v1/environments/{environment_id}/api-keys
-* GET /api/v1/environments/{environment_id}/api-keys
-* POST /api/v1/api-keys/{api_key_id}/revoke
+* GET /api/v1/environments/{environment_id}/api-keys/
+* POST /api/v1/environments/{environment_id}/api-keys/
+* POST /api/v1/api-keys/{api_key_id}/revoke/
+* POST /api/v1/environments/{environment_id}/auth-check/
 
 ### Ingestion
 
