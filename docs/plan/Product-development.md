@@ -34,18 +34,35 @@ Make the product boundaries and engineering rules explicit before implementation
 
 ## Architecture decision records
 
-Create at least:
+Create ADRs as architectural decisions are made. Candidate decision areas
+include:
 
-* ADR-001: Modular monolith
-* ADR-002: Django and Django REST Framework
-* ADR-003: PostgreSQL as system of record
-* ADR-004: Celery and Redis for background jobs
-* ADR-005: Transactional outbox
-* ADR-006: OpenTelemetry-compatible ingestion
-* ADR-007: Django templates and HTMX for the initial UI
-* ADR-008: Pydantic at external data boundaries
-* ADR-009: Service and selector application structure
-* ADR-010: Versioned datasets and evaluators
+* Modular monolith
+* Django and Django REST Framework
+* PostgreSQL as system of record
+* Projects and deployment environments
+* Environment-scoped API keys
+* Canonical telemetry and OpenTelemetry normalization
+* Celery and Redis for background jobs
+* Transactional outbox
+* Django templates and HTMX for the initial UI
+* Pydantic at external data boundaries
+* Service and selector application structure
+* Versioned datasets and evaluators
+
+## Phase completion documentation
+
+Before marking any phase complete:
+
+* Update this product plan with the phase status, implemented surface, remaining
+  boundary, and validation command.
+* Update architecture documentation when models, service boundaries, security
+  rules, ingestion behavior, API contracts, or operational assumptions changed.
+* Update OpenAPI documentation when public API behavior changed.
+* Add or revise ADRs when the phase introduced, completed, or changed an
+  architectural decision.
+* Update user-facing or developer-facing README/docs when setup, usage, or
+  validation commands changed.
 
 ## Exit criteria
 
@@ -632,9 +649,26 @@ Implemented backend surface:
 * `TelemetryNormalizer` protocol with native AgentProof and OpenTelemetry-style
   normalizers.
 * Trace-tree validation for duplicate span identifiers, missing parents, cycles,
-  timestamp ordering, child timing, and root-span determination.
+  timestamp ordering, child timing, and root-span determination. Child spans may
+  not start before their parent, including when the parent span is still
+  in-flight.
+* OpenTelemetry-style normalization accepts standard OTLP JSON shapes for
+  string-encoded nanosecond timestamps and `KeyValue` attribute arrays, while
+  retaining support for the existing flattened attribute shape. OTLP trace names
+  are derived from the root span rather than export order.
+* Token and cost metadata is normalized from native payloads and OpenTelemetry
+  attributes. Malformed, negative, or non-finite `agentproof.estimated_cost`
+  values are rejected during parsing.
 * `persist_canonical_trace` service for validating and persisting canonical
-  traces, spans, and span events in one transaction.
+  traces, spans, and span events in one transaction. Duplicate trace identity
+  errors are surfaced as `TelemetryPersistenceError`.
+* Tenant scope is derived from parent relationships where possible:
+  `Trace` from `Environment`, `Span` from `Trace`, `SpanEvent` from `Span`, and
+  `TraceAnnotation` from `Trace`. Parent relationships are immutable after
+  creation and admin treats denormalized scope fields as read-only.
+* Database invariants enforce valid status/type values, unique trace and span
+  identities, non-negative durations and estimated costs, and `ended_at` not
+  preceding `started_at` for trace and span rows.
 * Django admin registration for the telemetry tables.
 
 Tests:
@@ -642,7 +676,9 @@ Tests:
 * `backend/tests/test_telemetry.py` covers canonical persistence,
   organization/project/environment consistency, duplicate trace identity,
   malformed span trees, native normalization, OpenTelemetry-style normalization,
-  and Hypothesis-generated span tree validation.
+  OTLP JSON timestamp and `KeyValue` attribute parsing, model/admin-safe tenant
+  derivation, database invariants, and Hypothesis-generated span tree
+  validation.
 
 Validated gate:
 
@@ -1797,6 +1833,8 @@ Everything else is an enhancement.
 A feature is complete only when:
 
 * Product behavior is documented.
+* Relevant phase, architecture, ADR, OpenAPI, and README documentation has been
+  reviewed and updated or explicitly marked unchanged.
 * Permission rules are explicit.
 * Service logic is typed.
 * Database constraints exist where appropriate.

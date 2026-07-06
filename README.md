@@ -150,3 +150,16 @@ Phase 6 adds:
 
 Validation status: Phase 6 passes `make check`. Public ingestion endpoints are
 part of Phase 7.
+
+## Phase completion docs
+
+Before marking a phase complete, review and update the relevant documentation:
+
+- `docs/plan/Product-development.md` for status, implemented surface, remaining
+  boundary, and validation evidence.
+- `docs/architecture/README.md` when model, service, security, ingestion, API,
+  or operational behavior changed.
+- `docs/adr/` when the phase introduced, completed, or changed an architectural
+  decision.
+- `docs/api/openapi.yml` when public API behavior changed.
+- Root or package READMEs when setup, usage, or validation commands changed.

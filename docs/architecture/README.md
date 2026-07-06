@@ -1589,6 +1589,32 @@ OpenTelemetry-style normalization, trace-tree validation, and service-level
 persistence. HTTP ingestion, redaction, idempotency, and batch processing are
 handled by the later ingestion pipeline.
 
+Current telemetry normalization supports:
+
+* Native AgentProof trace envelopes.
+* OpenTelemetry-style span exports.
+* Standard OTLP JSON string-encoded nanosecond timestamps.
+* Standard OTLP `KeyValue` attribute arrays and flattened attribute maps.
+* Root-span-based trace naming for OpenTelemetry exports.
+* Rejection of malformed, negative, or non-finite estimated cost values.
+
+Trace-tree validation requires:
+
+* Unique span identifiers inside a trace.
+* Valid parent span references.
+* At least one root span.
+* No parent cycles.
+* Non-negative durations.
+* Span end timestamps not preceding start timestamps.
+* Child spans not starting before their parent, including in-flight parents.
+* Child spans not ending after an ended parent.
+
+Tenant scope is parent-derived wherever possible. Trace organization and
+project scope comes from the selected environment; span scope comes from its
+trace; span event scope comes from its span; annotation scope comes from its
+trace. Parent relationships are immutable after creation so denormalized scope
+columns cannot drift through normal model or admin writes.
+
 ### Trace
 
 Fields:
@@ -1625,6 +1651,14 @@ Important indexes:
 * project, session_identifier
 * GIN index on selected JSONB attributes only when query demand exists
 
+Constraints:
+
+* Unique organization, environment, external trace identifier, and schema version
+* Valid trace status
+* Non-negative duration when present
+* `ended_at` must be greater than or equal to `started_at` when present
+* Non-negative estimated cost when present
+
 ### Span
 
 Fields:
@@ -1655,6 +1689,11 @@ Fields:
 Constraints:
 
 * Unique trace and external span identifier pair
+* Valid span type
+* Valid span status
+* Non-negative duration when present
+* `ended_at` must be greater than or equal to `started_at` when present
+* Non-negative estimated cost when present
 
 ### SpanEvent
 
@@ -1666,6 +1705,10 @@ Fields:
 * name
 * occurred_at
 * attributes
+
+Scope:
+
+* `organization_id` is derived from the parent span.
 
 ### TraceAnnotation
 
@@ -1679,6 +1722,10 @@ Fields:
 * value
 * comment
 * created_at
+
+Scope:
+
+* `organization_id` is derived from the parent trace.
 
 ## 16.5 Datasets
 
