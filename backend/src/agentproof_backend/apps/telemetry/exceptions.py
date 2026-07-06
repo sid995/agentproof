@@ -10,7 +10,7 @@ class TelemetryError(Exception):
 class TelemetryValidationError(TelemetryError):
     """Raised when canonical telemetry is structurally invalid."""
 
-    code = "telemtry_validation_error"
+    code = "telemetry_validation_error"
 
 
 class TelemetryPersistenceError(TelemetryError):

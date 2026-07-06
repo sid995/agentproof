@@ -1,10 +1,11 @@
 """Tests for canonical telemetry domain behavior."""
 
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from itertools import count
 
 import pytest
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from hypothesis import given
 from hypothesis import strategies as st
 
@@ -24,7 +25,15 @@ from agentproof_backend.apps.telemetry.exceptions import (
     TelemetryValidationError,
     UnsupportedTelemetryPayload,
 )
-from agentproof_backend.apps.telemetry.models import Span, SpanEvent, SpanStatus, SpanType, Trace, TraceStatus
+from agentproof_backend.apps.telemetry.models import (
+    Span,
+    SpanEvent,
+    SpanStatus,
+    SpanType,
+    Trace,
+    TraceAnnotation,
+    TraceStatus,
+)
 from agentproof_backend.apps.telemetry.normalizers import normalize_telemetry
 from agentproof_backend.apps.telemetry.services import persist_canonical_trace
 from agentproof_backend.apps.telemetry.validation import validate_trace_tree
@@ -214,13 +223,201 @@ def test_duplicate_trace_identity_is_rejected() -> None:
         canonical_trace=canonical_trace(),
     )
 
-    with pytest.raises(IntegrityError):
+    with pytest.raises(TelemetryPersistenceError):
         persist_canonical_trace(
             organization=organization,
             project=project,
             environment=environment,
             canonical_trace=canonical_trace(),
         )
+
+
+def test_trace_schema_invariants_are_enforced_for_direct_writes() -> None:
+    environment, project, organization = create_project_with_default_environment()
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        Trace.objects.create(
+            organization=organization,
+            project=project,
+            environment=environment,
+            external_trace_id="invalid-ended-at",
+            schema_version="agentproof.v1",
+            name="Invalid ended_at",
+            status=TraceStatus.UNKNOWN,
+            started_at=STARTED_AT,
+            ended_at=STARTED_AT - timedelta(seconds=1),
+        )
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        Trace.objects.create(
+            organization=organization,
+            project=project,
+            environment=environment,
+            external_trace_id="invalid-cost",
+            schema_version="agentproof.v1",
+            name="Invalid cost",
+            status=TraceStatus.UNKNOWN,
+            started_at=STARTED_AT,
+            estimated_cost=Decimal("-0.000001"),
+        )
+
+
+def test_span_schema_invariants_are_enforced_for_direct_writes() -> None:
+    environment, project, organization = create_project_with_default_environment()
+    trace = Trace.objects.create(
+        organization=organization,
+        project=project,
+        environment=environment,
+        external_trace_id="schema-invariant-trace",
+        schema_version="agentproof.v1",
+        name="Schema invariant trace",
+        status=TraceStatus.UNKNOWN,
+        started_at=STARTED_AT,
+    )
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        Span.objects.create(
+            organization=organization,
+            trace=trace,
+            external_span_id="invalid-ended-at",
+            span_type=SpanType.CUSTOM,
+            name="Invalid ended_at",
+            status=SpanStatus.UNSET,
+            started_at=STARTED_AT,
+            ended_at=STARTED_AT - timedelta(seconds=1),
+        )
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        Span.objects.create(
+            organization=organization,
+            trace=trace,
+            external_span_id="invalid-cost",
+            span_type=SpanType.CUSTOM,
+            name="Invalid cost",
+            status=SpanStatus.UNSET,
+            started_at=STARTED_AT,
+            estimated_cost=Decimal("-0.000001"),
+        )
+
+
+def test_telemetry_models_derive_organization_from_parent_scope() -> None:
+    environment, project, organization = create_project_with_default_environment()
+    _other_environment, other_project, other_organization = create_project_with_default_environment()
+
+    trace = Trace.objects.create(
+        organization=other_organization,
+        project=other_project,
+        environment=environment,
+        external_trace_id="direct-trace",
+        schema_version="agentproof.v1",
+        name="Direct trace",
+        status=TraceStatus.UNKNOWN,
+        started_at=STARTED_AT,
+    )
+    span = Span.objects.create(
+        organization=other_organization,
+        trace=trace,
+        external_span_id="direct-span",
+        span_type=SpanType.CUSTOM,
+        name="Direct span",
+        status=SpanStatus.UNSET,
+        started_at=STARTED_AT,
+    )
+    event = SpanEvent.objects.create(
+        organization=other_organization,
+        span=span,
+        name="Direct event",
+        occurred_at=STARTED_AT,
+    )
+    annotation = TraceAnnotation.objects.create(
+        organization=other_organization,
+        trace=trace,
+        annotation_type="note",
+        value={"rating": "useful"},
+    )
+
+    trace.refresh_from_db()
+    span.refresh_from_db()
+    event.refresh_from_db()
+    annotation.refresh_from_db()
+
+    assert trace.organization == organization
+    assert trace.project == project
+    assert span.organization == organization
+    assert event.organization == organization
+    assert annotation.organization == organization
+
+
+def test_telemetry_parent_relationships_are_immutable_after_creation() -> None:
+    environment, project, organization = create_project_with_default_environment()
+    other_environment, other_project, other_organization = create_project_with_default_environment()
+
+    trace = Trace.objects.create(
+        organization=organization,
+        project=project,
+        environment=environment,
+        external_trace_id="immutable-trace",
+        schema_version="agentproof.v1",
+        name="Immutable trace",
+        status=TraceStatus.UNKNOWN,
+        started_at=STARTED_AT,
+    )
+    other_trace = Trace.objects.create(
+        organization=other_organization,
+        project=other_project,
+        environment=other_environment,
+        external_trace_id="other-immutable-trace",
+        schema_version="agentproof.v1",
+        name="Other immutable trace",
+        status=TraceStatus.UNKNOWN,
+        started_at=STARTED_AT,
+    )
+    span = Span.objects.create(
+        organization=organization,
+        trace=trace,
+        external_span_id="immutable-span",
+        span_type=SpanType.CUSTOM,
+        name="Immutable span",
+        status=SpanStatus.UNSET,
+        started_at=STARTED_AT,
+    )
+    other_span = Span.objects.create(
+        organization=other_organization,
+        trace=other_trace,
+        external_span_id="other-immutable-span",
+        span_type=SpanType.CUSTOM,
+        name="Other immutable span",
+        status=SpanStatus.UNSET,
+        started_at=STARTED_AT,
+    )
+    event = SpanEvent.objects.create(
+        organization=organization,
+        span=span,
+        name="Immutable event",
+        occurred_at=STARTED_AT,
+    )
+    annotation = TraceAnnotation.objects.create(
+        organization=organization,
+        trace=trace,
+        annotation_type="note",
+        value={"rating": "useful"},
+    )
+
+    trace.environment = other_environment
+    with pytest.raises(ValueError, match="Trace environment cannot be changed"):
+        trace.save()
+
+    span.trace = other_trace
+    with pytest.raises(ValueError, match="Span trace cannot be changed"):
+        span.save()
+
+    event.span = other_span
+    with pytest.raises(ValueError, match="Span event parent span cannot be changed"):
+        event.save()
+
+    annotation.trace = other_trace
+    with pytest.raises(ValueError, match="Trace annotation parent trace cannot be changed"):
+        annotation.save()
 
 
 def test_duplicate_span_ids_are_rejected() -> None:
@@ -309,6 +506,27 @@ def test_child_outside_parent_timing_is_rejected() -> None:
         validate_trace_tree(canonical_trace(spans=(parent, child)))
 
 
+def test_child_cannot_start_before_in_flight_parent() -> None:
+    parent = CanonicalSpan(
+        external_span_id="parent",
+        name="Parent",
+        span_type=SpanType.AGENT,
+        status=SpanStatus.UNSET,
+        started_at=STARTED_AT + timedelta(seconds=1),
+    )
+    child = CanonicalSpan(
+        external_span_id="child",
+        parent_external_span_id="parent",
+        name="Child",
+        span_type=SpanType.TOOL,
+        status=SpanStatus.UNSET,
+        started_at=STARTED_AT,
+    )
+
+    with pytest.raises(TelemetryValidationError, match="Span child starts before parent parent"):
+        validate_trace_tree(canonical_trace(spans=(parent, child)))
+
+
 def test_native_payload_normalizes_to_canonical_trace() -> None:
     traces = normalize_telemetry(
         schema_version="agentproof.v1",
@@ -382,19 +600,19 @@ def test_opentelemetry_payload_groups_spans_by_trace() -> None:
                             "spans": [
                                 {
                                     "traceId": "otel-trace",
-                                    "spanId": "root",
-                                    "name": "Root",
-                                    "startTimeUnixNano": 1_767_260_000_000_000_000,
-                                    "endTimeUnixNano": 1_767_260_001_000_000_000,
-                                    "attributes": {"agentproof.span_type": "agent"},
-                                },
-                                {
-                                    "traceId": "otel-trace",
                                     "spanId": "child",
                                     "parentSpanId": "root",
                                     "name": "Child",
                                     "startTimeUnixNano": 1_767_260_000_100_000_000,
                                     "endTimeUnixNano": 1_767_260_000_900_000_000,
+                                },
+                                {
+                                    "traceId": "otel-trace",
+                                    "spanId": "root",
+                                    "name": "Root",
+                                    "startTimeUnixNano": 1_767_260_000_000_000_000,
+                                    "endTimeUnixNano": 1_767_260_001_000_000_000,
+                                    "attributes": {"agentproof.span_type": "agent"},
                                 },
                             ]
                         }
@@ -406,6 +624,7 @@ def test_opentelemetry_payload_groups_spans_by_trace() -> None:
 
     assert len(traces) == 1
     assert traces[0].external_trace_id == "otel-trace"
+    assert traces[0].name == "Root"
     assert {span.external_span_id for span in traces[0].spans} == {"root", "child"}
 
 
@@ -464,6 +683,105 @@ def test_opentelemetry_payload_maps_error_model_tokens_and_events() -> None:
     assert span.token_usage.output_tokens == 22
     assert span.events[0].name == "exception"
     assert span.events[0].attributes == {"exception.type": "ValueError"}
+
+
+def test_opentelemetry_payload_accepts_standard_json_timestamps_and_key_values() -> None:
+    traces = normalize_telemetry(
+        schema_version="otel.v1",
+        source="opentelemetry",
+        payload={
+            "resourceSpans": [
+                {
+                    "scopeSpans": [
+                        {
+                            "spans": [
+                                {
+                                    "traceId": "otel-standard-trace",
+                                    "spanId": "model",
+                                    "name": "Model call",
+                                    "startTimeUnixNano": "1767260000000000000",
+                                    "endTimeUnixNano": "1767260001000000000",
+                                    "attributes": [
+                                        {"key": "agentproof.span_type", "value": {"stringValue": "model"}},
+                                        {"key": "gen_ai.system", "value": {"stringValue": "openai"}},
+                                        {"key": "gen_ai.request.model", "value": {"stringValue": "gpt-test"}},
+                                        {"key": "gen_ai.usage.input_tokens", "value": {"intValue": "11"}},
+                                        {"key": "gen_ai.usage.output_tokens", "value": {"intValue": "22"}},
+                                        {"key": "agentproof.estimated_cost", "value": {"doubleValue": 0.125}},
+                                    ],
+                                    "events": [
+                                        {
+                                            "name": "exception",
+                                            "timeUnixNano": "1767260000500000000",
+                                            "attributes": [
+                                                {
+                                                    "key": "exception.type",
+                                                    "value": {"stringValue": "ValueError"},
+                                                }
+                                            ],
+                                        }
+                                    ],
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+    )
+
+    span = traces[0].spans[0]
+
+    assert span.span_type == SpanType.MODEL
+    assert span.model is not None
+    assert span.model.provider_name == "openai"
+    assert span.model.model_name == "gpt-test"
+    assert span.token_usage is not None
+    assert span.token_usage.input_tokens == 11
+    assert span.token_usage.output_tokens == 22
+    assert span.token_usage.estimated_cost == Decimal("0.125")
+    assert span.events[0].attributes == {"exception.type": "ValueError"}
+
+
+@pytest.mark.parametrize(
+    ("value", "value_type"),
+    [
+        ("not-a-decimal", "stringValue"),
+        ("NaN", "stringValue"),
+        ("Infinity", "stringValue"),
+        (-0.01, "doubleValue"),
+    ],
+)
+def test_opentelemetry_payload_rejects_malformed_estimated_cost(value: object, value_type: str) -> None:
+    with pytest.raises(UnsupportedTelemetryPayload, match="estimated cost"):
+        normalize_telemetry(
+            schema_version="otel.v1",
+            source="opentelemetry",
+            payload={
+                "resourceSpans": [
+                    {
+                        "scopeSpans": [
+                            {
+                                "spans": [
+                                    {
+                                        "traceId": "otel-bad-cost-trace",
+                                        "spanId": "model",
+                                        "name": "Model call",
+                                        "startTimeUnixNano": "1767260000000000000",
+                                        "attributes": [
+                                            {
+                                                "key": "agentproof.estimated_cost",
+                                                "value": {value_type: value},
+                                            },
+                                        ],
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+        )
 
 
 def test_empty_opentelemetry_payload_is_rejected() -> None:

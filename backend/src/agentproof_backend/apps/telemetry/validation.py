@@ -47,7 +47,7 @@ def validate_trace_tree(trace: CanonicalTrace) -> tuple[str, ...]:
         if parent is None:
             raise TelemetryValidationError(f"Span {span.external_span_id} references missing parent {parent_id}")
 
-        if parent.ended_at is not None and span.started_at < parent.started_at:
+        if span.started_at < parent.started_at:
             raise TelemetryValidationError(f"Span {span.external_span_id} starts before parent {parent_id}")
 
         if parent.ended_at is not None and span.ended_at is not None and span.ended_at > parent.ended_at:

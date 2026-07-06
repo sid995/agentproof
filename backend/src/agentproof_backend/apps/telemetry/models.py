@@ -1,13 +1,16 @@
 """Canonical telemetry database models"""
 
+from collections.abc import Iterable
 from typing import ClassVar
 
 from django.conf import settings
 from django.db import models
 from django.db.models import Q
+from django.db.models.base import ModelBase
 from django.db.models.constraints import BaseConstraint
 
 from agentproof_backend.apps.common.models import TimeStampedUUIDModel, UUIDModel
+from agentproof_backend.apps.projects.models import Environment
 
 
 class TraceStatus(models.TextChoices):
@@ -76,6 +79,14 @@ class Trace(TimeStampedUUIDModel):
                 condition=Q(duration_ms__isnull=True) | Q(duration_ms__gte=0),
                 name="trace_duration_non_negative",
             ),
+            models.CheckConstraint(
+                condition=Q(ended_at__isnull=True) | Q(ended_at__gte=models.F("started_at")),
+                name="trace_ended_at_after_started_at",
+            ),
+            models.CheckConstraint(
+                condition=Q(estimated_cost__isnull=True) | Q(estimated_cost__gte=0),
+                name="trace_estimated_cost_non_negative",
+            ),
         ]
         indexes: ClassVar[list[models.Index]] = [
             models.Index(
@@ -89,6 +100,33 @@ class Trace(TimeStampedUUIDModel):
 
     def __str__(self) -> str:
         return f"{self.environment} / {self.name}"
+
+    def save(
+        self,
+        *,
+        force_insert: bool | tuple[ModelBase, ...] = False,
+        force_update: bool = False,
+        using: str | None = None,
+        update_fields: Iterable[str] | None = None,
+    ) -> None:
+        if self.environment_id is not None:
+            if not self._state.adding and self.pk is not None:
+                previous_environment_id = type(self).objects.only("environment_id").get(pk=self.pk).environment_id
+                if previous_environment_id != self.environment_id:
+                    raise ValueError("Trace environment cannot be changed after creation.")
+
+            environment_scope = Environment.objects.only("organization_id", "project_id").get(pk=self.environment_id)
+            self.project_id = environment_scope.project_id
+            self.organization_id = environment_scope.organization_id
+            if update_fields is not None:
+                update_fields = set(update_fields) | {"project", "organization"}
+
+        super().save(
+            force_insert=force_insert,
+            force_update=force_update,
+            using=using,
+            update_fields=update_fields,
+        )
 
 
 class Span(TimeStampedUUIDModel):
@@ -125,6 +163,14 @@ class Span(TimeStampedUUIDModel):
                 condition=Q(duration_ms__isnull=True) | Q(duration_ms__gte=0),
                 name="span_duration_non_negative",
             ),
+            models.CheckConstraint(
+                condition=Q(ended_at__isnull=True) | Q(ended_at__gte=models.F("started_at")),
+                name="span_ended_at_after_started_at",
+            ),
+            models.CheckConstraint(
+                condition=Q(estimated_cost__isnull=True) | Q(estimated_cost__gte=0),
+                name="span_estimated_cost_non_negative",
+            ),
         ]
         indexes: ClassVar[list[models.Index]] = [
             models.Index(fields=("trace", "parent_external_span_id"), name="span_trace_parent_idx"),
@@ -133,6 +179,32 @@ class Span(TimeStampedUUIDModel):
 
     def __str__(self) -> str:
         return f"{self.trace.external_trace_id} / {self.name}"
+
+    def save(
+        self,
+        *,
+        force_insert: bool | tuple[ModelBase, ...] = False,
+        force_update: bool = False,
+        using: str | None = None,
+        update_fields: Iterable[str] | None = None,
+    ) -> None:
+        if self.trace_id is not None:
+            if not self._state.adding and self.pk is not None:
+                previous_trace_id = type(self).objects.only("trace_id").get(pk=self.pk).trace_id
+                if previous_trace_id != self.trace_id:
+                    raise ValueError("Span trace cannot be changed after creation.")
+
+            trace_scope = Trace.objects.only("organization_id").get(pk=self.trace_id)
+            self.organization_id = trace_scope.organization_id
+            if update_fields is not None:
+                update_fields = set(update_fields) | {"organization"}
+
+        super().save(
+            force_insert=force_insert,
+            force_update=force_update,
+            using=using,
+            update_fields=update_fields,
+        )
 
 
 class SpanEvent(UUIDModel):
@@ -153,6 +225,32 @@ class SpanEvent(UUIDModel):
 
     def __str__(self) -> str:
         return f"{self.span.external_span_id} / {self.name}"
+
+    def save(
+        self,
+        *,
+        force_insert: bool | tuple[ModelBase, ...] = False,
+        force_update: bool = False,
+        using: str | None = None,
+        update_fields: Iterable[str] | None = None,
+    ) -> None:
+        if self.span_id is not None:
+            if not self._state.adding and self.pk is not None:
+                previous_span_id = type(self).objects.only("span_id").get(pk=self.pk).span_id
+                if previous_span_id != self.span_id:
+                    raise ValueError("Span event parent span cannot be changed after creation.")
+
+            span_scope = Span.objects.only("organization_id").get(pk=self.span_id)
+            self.organization_id = span_scope.organization_id
+            if update_fields is not None:
+                update_fields = set(update_fields) | {"organization"}
+
+        super().save(
+            force_insert=force_insert,
+            force_update=force_update,
+            using=using,
+            update_fields=update_fields,
+        )
 
 
 class TraceAnnotation(UUIDModel):
@@ -185,3 +283,29 @@ class TraceAnnotation(UUIDModel):
 
     def __str__(self) -> str:
         return f"{self.trace.external_trace_id} / {self.annotation_type}"
+
+    def save(
+        self,
+        *,
+        force_insert: bool | tuple[ModelBase, ...] = False,
+        force_update: bool = False,
+        using: str | None = None,
+        update_fields: Iterable[str] | None = None,
+    ) -> None:
+        if self.trace_id is not None:
+            if not self._state.adding and self.pk is not None:
+                previous_trace_id = type(self).objects.only("trace_id").get(pk=self.pk).trace_id
+                if previous_trace_id != self.trace_id:
+                    raise ValueError("Trace annotation parent trace cannot be changed after creation.")
+
+            trace_scope = Trace.objects.only("organization_id").get(pk=self.trace_id)
+            self.organization_id = trace_scope.organization_id
+            if update_fields is not None:
+                update_fields = set(update_fields) | {"organization"}
+
+        super().save(
+            force_insert=force_insert,
+            force_update=force_update,
+            using=using,
+            update_fields=update_fields,
+        )

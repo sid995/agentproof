@@ -252,6 +252,22 @@ class Migration(migrations.Migration):
                 name="trace_duration_non_negative",
             ),
         ),
+        migrations.AddConstraint(
+            model_name="trace",
+            constraint=models.CheckConstraint(
+                condition=models.Q(
+                    ("ended_at__isnull", True), ("ended_at__gte", models.F("started_at")), _connector="OR"
+                ),
+                name="trace_ended_at_after_started_at",
+            ),
+        ),
+        migrations.AddConstraint(
+            model_name="trace",
+            constraint=models.CheckConstraint(
+                condition=models.Q(("estimated_cost__isnull", True), ("estimated_cost__gte", 0), _connector="OR"),
+                name="trace_estimated_cost_non_negative",
+            ),
+        ),
         migrations.AddIndex(
             model_name="span",
             index=models.Index(fields=["trace", "parent_external_span_id"], name="span_trace_parent_idx"),
@@ -286,6 +302,22 @@ class Migration(migrations.Migration):
             constraint=models.CheckConstraint(
                 condition=models.Q(("duration_ms__isnull", True), ("duration_ms__gte", 0), _connector="OR"),
                 name="span_duration_non_negative",
+            ),
+        ),
+        migrations.AddConstraint(
+            model_name="span",
+            constraint=models.CheckConstraint(
+                condition=models.Q(
+                    ("ended_at__isnull", True), ("ended_at__gte", models.F("started_at")), _connector="OR"
+                ),
+                name="span_ended_at_after_started_at",
+            ),
+        ),
+        migrations.AddConstraint(
+            model_name="span",
+            constraint=models.CheckConstraint(
+                condition=models.Q(("estimated_cost__isnull", True), ("estimated_cost__gte", 0), _connector="OR"),
+                name="span_estimated_cost_non_negative",
             ),
         ),
         migrations.AddIndex(

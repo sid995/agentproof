@@ -25,7 +25,7 @@ class TraceAdmin(TraceAdminBase):
     list_display = ("name", "external_trace_id", "environment", "project", "status", "started_at")
     list_filter = ("organization", "project", "environment", "status")
     search_fields = ("name", "external_trace_id", "session_identifier", "user_identifier")
-    readonly_fields = ("id", "created_at", "updated_at")
+    readonly_fields = ("id", "organization", "project", "created_at", "updated_at")
 
 
 @admin.register(Span)
@@ -35,7 +35,7 @@ class SpanAdmin(SpanAdminBase):
     list_display = ("name", "external_span_id", "trace", "span_type", "status", "started_at")
     list_filter = ("organization", "span_type", "status")
     search_fields = ("name", "external_span_id", "parent_external_span_id", "trace__external_trace_id")
-    readonly_fields = ("id", "created_at", "updated_at")
+    readonly_fields = ("id", "organization", "created_at", "updated_at")
 
 
 @admin.register(SpanEvent)
@@ -45,7 +45,7 @@ class SpanEventAdmin(SpanEventAdminBase):
     list_display = ("name", "span", "organization", "occurred_at")
     list_filter = ("organization", "name")
     search_fields = ("name", "span__external_span_id", "span__trace__external_trace_id")
-    readonly_fields = ("id",)
+    readonly_fields = ("id", "organization")
 
 
 @admin.register(TraceAnnotation)
@@ -55,4 +55,4 @@ class TraceAnnotationAdmin(TraceAnnotationAdminBase):
     list_display = ("annotation_type", "trace", "author", "organization", "created_at")
     list_filter = ("organization", "annotation_type")
     search_fields = ("annotation_type", "comment", "trace__external_trace_id")
-    readonly_fields = ("id", "created_at")
+    readonly_fields = ("id", "organization", "created_at")

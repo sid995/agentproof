@@ -1,6 +1,6 @@
 """State changing telemetry services"""
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 
 from agentproof_backend.apps.organizations.models import Organization
 from agentproof_backend.apps.projects.models import Environment, Project
@@ -39,29 +39,32 @@ def persist_canonical_trace(
     _require_scope_consistency(organization=organization, project=project, environment=environment)
     validate_trace_tree(canonical_trace)
 
-    trace = Trace.objects.create(
-        organization=organization,
-        project=project,
-        environment=environment,
-        external_trace_id=canonical_trace.external_trace_id,
-        schema_version=canonical_trace.schema_version,
-        name=canonical_trace.name,
-        status=canonical_trace.status,
-        started_at=canonical_trace.started_at,
-        ended_at=canonical_trace.ended_at,
-        duration_ms=canonical_trace.duration_ms,
-        input=dict(canonical_trace.input),
-        output=dict(canonical_trace.output),
-        attributes=dict(canonical_trace.attributes),
-        tags=list(canonical_trace.tags),
-        error_type=canonical_trace.error.error_type if canonical_trace.error else "",
-        error_message=canonical_trace.error.message if canonical_trace.error else "",
-        total_input_tokens=canonical_trace.token_usage.input_tokens if canonical_trace.token_usage else None,
-        total_output_tokens=canonical_trace.token_usage.output_tokens if canonical_trace.token_usage else None,
-        estimated_cost=canonical_trace.token_usage.estimated_cost if canonical_trace.token_usage else None,
-        user_identifier=canonical_trace.user_identifier,
-        session_identifier=canonical_trace.session_identifier,
-    )
+    try:
+        trace = Trace.objects.create(
+            organization=organization,
+            project=project,
+            environment=environment,
+            external_trace_id=canonical_trace.external_trace_id,
+            schema_version=canonical_trace.schema_version,
+            name=canonical_trace.name,
+            status=canonical_trace.status,
+            started_at=canonical_trace.started_at,
+            ended_at=canonical_trace.ended_at,
+            duration_ms=canonical_trace.duration_ms,
+            input=dict(canonical_trace.input),
+            output=dict(canonical_trace.output),
+            attributes=dict(canonical_trace.attributes),
+            tags=list(canonical_trace.tags),
+            error_type=canonical_trace.error.error_type if canonical_trace.error else "",
+            error_message=canonical_trace.error.message if canonical_trace.error else "",
+            total_input_tokens=canonical_trace.token_usage.input_tokens if canonical_trace.token_usage else None,
+            total_output_tokens=canonical_trace.token_usage.output_tokens if canonical_trace.token_usage else None,
+            estimated_cost=canonical_trace.token_usage.estimated_cost if canonical_trace.token_usage else None,
+            user_identifier=canonical_trace.user_identifier,
+            session_identifier=canonical_trace.session_identifier,
+        )
+    except IntegrityError as exc:
+        raise TelemetryPersistenceError("Trace could not be persisted") from exc
 
     spans_by_external_id: dict[str, Span] = {}
     for canonical_span in canonical_trace.spans:

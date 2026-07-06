@@ -2,7 +2,7 @@
 
 from collections.abc import Mapping
 from datetime import UTC, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from agentproof_backend.apps.telemetry.domain import (
@@ -24,6 +24,13 @@ OTEL_SCHEMA_VERSION = "otel.v1"
 
 
 def _datetime_from_unix_nanos(value: object) -> datetime:
+    if isinstance(value, bool):
+        raise UnsupportedTelemetryPayload("OpenTelemetry timestamp must be integer nanoseconds")
+    if isinstance(value, str):
+        value = value.strip()
+        if not value.isdigit():
+            raise UnsupportedTelemetryPayload("OpenTelemetry timestamp must be integer nanoseconds")
+        value = int(value)
     if not isinstance(value, int):
         raise UnsupportedTelemetryPayload("OpenTelemetry timestamp must be integer nanoseconds")
     return datetime.fromtimestamp(value / 1_000_000_000, tz=UTC)
@@ -41,6 +48,58 @@ def _list_value(value: object) -> list[Any]:
     return list(value) if isinstance(value, list) else []
 
 
+def _otel_any_value(value: object) -> Any:
+    value_map = _mapping_value(value)
+    if not value_map:
+        return value
+
+    if "stringValue" in value_map:
+        return _string_value(value_map["stringValue"])
+    if "intValue" in value_map:
+        raw_int = value_map["intValue"]
+        return int(raw_int) if isinstance(raw_int, str) else raw_int
+    if "doubleValue" in value_map:
+        return value_map["doubleValue"]
+    if "boolValue" in value_map:
+        return value_map["boolValue"]
+    if "arrayValue" in value_map:
+        array_value = _mapping_value(value_map["arrayValue"])
+        return [_otel_any_value(item) for item in _list_value(array_value.get("values"))]
+    if "kvlistValue" in value_map:
+        kvlist_value = _mapping_value(value_map["kvlistValue"])
+        return _otel_attributes(kvlist_value.get("values"))
+    if "bytesValue" in value_map:
+        return value_map["bytesValue"]
+
+    return value_map
+
+
+def _otel_attributes(value: object) -> dict[str, Any]:
+    value_map = _mapping_value(value)
+    if value_map:
+        return value_map
+
+    attributes: dict[str, Any] = {}
+    for item in _list_value(value):
+        item_map = _mapping_value(item)
+        key = _string_value(item_map.get("key"))
+        if key:
+            attributes[key] = _otel_any_value(item_map.get("value"))
+    return attributes
+
+
+def _estimated_cost_value(value: object) -> Decimal:
+    try:
+        estimated_cost = Decimal(str(value))
+    except InvalidOperation as exc:
+        raise UnsupportedTelemetryPayload("OpenTelemetry estimated cost must be a finite decimal") from exc
+
+    if not estimated_cost.is_finite() or estimated_cost < 0:
+        raise UnsupportedTelemetryPayload("OpenTelemetry estimated cost must be a finite non-negative decimal")
+
+    return estimated_cost
+
+
 def _duration_ms(started_at: datetime, ended_at: datetime | None) -> int | None:
     if ended_at is None:
         return None
@@ -52,12 +111,12 @@ def _canonical_event(event: object) -> CanonicalSpanEvent:
     event_map = _mapping_value(event)
     timestamp = event_map.get("timeUnixNano") or event_map.get("occurred_at")
     occurred_at = (
-        _datetime_from_unix_nanos(timestamp) if isinstance(timestamp, int) else datetime.fromisoformat(str(timestamp))
+        _datetime_from_unix_nanos(timestamp) if "timeUnixNano" in event_map else datetime.fromisoformat(str(timestamp))
     )
     return CanonicalSpanEvent(
         name=_string_value(event_map.get("name"), "event"),
         occurred_at=occurred_at,
-        attributes=_mapping_value(event_map.get("attributes", {})),
+        attributes=_otel_attributes(event_map.get("attributes", {})),
     )
 
 
@@ -178,7 +237,7 @@ class OpenTelemetryStyleNormalizer:
                     status_map = _mapping_value(span_map.get("status"))
                     status_code = _string_value(status_map.get("code")).lower()
                     status = SpanStatus.ERROR if status_code == "error" else SpanStatus.UNSET
-                    attributes = _mapping_value(span_map.get("attributes"))
+                    attributes = _otel_attributes(span_map.get("attributes"))
 
                     canonical_span = CanonicalSpan(
                         external_span_id=span_id,
@@ -206,7 +265,7 @@ class OpenTelemetryStyleNormalizer:
                             output_tokens=attributes.get("gen_ai.usage.output_tokens")
                             if isinstance(attributes.get("gen_ai.usage.output_tokens"), int)
                             else None,
-                            estimated_cost=Decimal(str(attributes["agentproof.estimated_cost"]))
+                            estimated_cost=_estimated_cost_value(attributes["agentproof.estimated_cost"])
                             if "agentproof.estimated_cost" in attributes
                             else None,
                         ),
@@ -223,14 +282,25 @@ class OpenTelemetryStyleNormalizer:
             trace = CanonicalTrace(
                 external_trace_id=trace_id,
                 schema_version=OTEL_SCHEMA_VERSION,
-                name=spans[0].name,
+                name="",
                 status=TraceStatus.ERROR if has_error else TraceStatus.UNKNOWN,
                 started_at=started_at,
                 ended_at=ended_at,
                 duration_ms=_duration_ms(started_at, ended_at),
                 spans=tuple(spans),
             )
-            validate_trace_tree(trace)
+            root_ids = validate_trace_tree(trace)
+            root_span = next(span for span in spans if span.external_span_id == root_ids[0])
+            trace = CanonicalTrace(
+                external_trace_id=trace.external_trace_id,
+                schema_version=trace.schema_version,
+                name=root_span.name,
+                status=trace.status,
+                started_at=trace.started_at,
+                ended_at=trace.ended_at,
+                duration_ms=trace.duration_ms,
+                spans=trace.spans,
+            )
             traces.append(trace)
 
         if not traces:
