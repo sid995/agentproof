@@ -278,6 +278,27 @@ def test_developer_can_create_environment() -> None:
     ).exists()
 
 
+def test_default_environment_inherits_project_configuration() -> None:
+    owner = create_user(email="owner@example.com")
+    organization, _membership = create_test_organization(owner=owner)
+
+    result = create_project(
+        actor=owner,
+        organization=organization,
+        name="Billing Agent",
+        requested_slug="billing-agent",
+        description="Billing workflow",
+        capture_mode=CaptureMode.METADATA_ONLY,
+        retention_days=14,
+        audit_context=AUDIT_CONTEXT,
+    )
+
+    assert result.default_environment.capture_mode_override == ""
+    assert result.default_environment.retention_days_override is None
+    assert result.default_environment.effective_capture_mode == CaptureMode.METADATA_ONLY
+    assert result.default_environment.effective_retention_days == 14
+
+
 def test_environment_slug_conflicts_get_available_suffix_per_project() -> None:
     owner = create_user(email="owner@example.com")
     organization, _membership = create_test_organization(owner=owner)
@@ -459,6 +480,37 @@ def test_environment_update_api_can_clear_retention_override() -> None:
     environment.refresh_from_db()
     assert environment.retention_days_override is None
     assert response.json()["effective_retention_days"] == project.retention_days
+
+
+def test_environment_update_api_can_clear_capture_override() -> None:
+    owner = create_user(email="owner@example.com")
+    organization, _membership = create_test_organization(owner=owner)
+    project = create_test_project(actor=owner, organization=organization)
+    environment = create_environment(
+        actor=owner,
+        organization=organization,
+        project_id=project.id,
+        name="Development",
+        requested_slug="development",
+        environment_type=EnvironmentType.DEVELOPMENT,
+        capture_mode_override=CaptureMode.FULL,
+        retention_days_override=None,
+        audit_context=AUDIT_CONTEXT,
+    )
+
+    client = authenticated_client(owner)
+    set_active_organization(client=client, organization_id=organization.id)
+
+    response = client.patch(
+        f"/api/v1/environments/{environment.id}/",
+        {"capture_mode_override": None},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    environment.refresh_from_db()
+    assert environment.capture_mode_override == ""
+    assert response.json()["effective_capture_mode"] == project.capture_mode
 
 
 def test_viewer_can_read_but_not_update_environment_api() -> None:
