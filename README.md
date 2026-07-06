@@ -131,3 +131,22 @@ Main endpoints:
 Validation status: Phase 5 API-key management and authentication checks are
 covered by `backend/tests/test_api_keys.py`; refresh `make schema` after API
 changes and run `make check` before marking the phase complete.
+
+## Telemetry domain
+
+Telemetry is stored in a canonical internal model before any public ingestion
+endpoint accepts provider-specific payloads.
+
+Phase 6 adds:
+
+- `Trace`, `Span`, `SpanEvent`, and `TraceAnnotation` database models.
+- Native AgentProof Pydantic envelopes for trace and span payloads.
+- A normalizer interface with native AgentProof and OpenTelemetry-style
+  adapters.
+- Trace-tree validation for duplicate spans, missing parents, cycles, invalid
+  timestamps, child timing, and root-span detection.
+- A service that validates and persists canonical traces without exposing an
+  HTTP endpoint.
+
+Validation status: Phase 6 passes `make check`. Public ingestion endpoints are
+part of Phase 7.

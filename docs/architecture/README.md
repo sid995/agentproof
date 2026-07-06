@@ -1582,6 +1582,13 @@ Fields:
 
 ## 16.4 Telemetry
 
+Telemetry is normalized into canonical traces before any provider-specific
+payload is accepted by the ingestion pipeline. The `telemetry` app owns durable
+trace storage, frozen canonical domain objects, native AgentProof envelopes,
+OpenTelemetry-style normalization, trace-tree validation, and service-level
+persistence. HTTP ingestion, redaction, idempotency, and batch processing are
+handled by the later ingestion pipeline.
+
 ### Trace
 
 Fields:

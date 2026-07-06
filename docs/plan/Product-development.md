@@ -525,6 +525,8 @@ A request authenticated with a valid environment key reaches a protected test en
 
 # Phase 6: Define the telemetry domain
 
+Status: Implemented and validated with `make check`.
+
 ## Objective
 
 Design the canonical internal trace model before accepting provider-specific payloads.
@@ -613,6 +615,45 @@ Generate random span trees and verify:
 ## Exit criteria
 
 Canonical traces can be validated and persisted through a service without an HTTP endpoint.
+
+## Current implementation
+
+Phase 6 is implemented in the `telemetry` app.
+
+Implemented backend surface:
+
+* Durable models: `Trace`, `Span`, `SpanEvent`, and `TraceAnnotation`.
+* Domain enums: trace status, span status, and span type. Capture mode remains
+  owned by the existing project/environment configuration.
+* Frozen canonical domain objects for traces, spans, span events, token usage,
+  errors, model metadata, and tool metadata.
+* Native AgentProof Pydantic envelopes for trace, span, event, token, error,
+  model, and tool payloads.
+* `TelemetryNormalizer` protocol with native AgentProof and OpenTelemetry-style
+  normalizers.
+* Trace-tree validation for duplicate span identifiers, missing parents, cycles,
+  timestamp ordering, child timing, and root-span determination.
+* `persist_canonical_trace` service for validating and persisting canonical
+  traces, spans, and span events in one transaction.
+* Django admin registration for the telemetry tables.
+
+Tests:
+
+* `backend/tests/test_telemetry.py` covers canonical persistence,
+  organization/project/environment consistency, duplicate trace identity,
+  malformed span trees, native normalization, OpenTelemetry-style normalization,
+  and Hypothesis-generated span tree validation.
+
+Validated gate:
+
+* `UV_CACHE_DIR=.uv-cache make check`
+
+## Remaining boundary
+
+Phase 6 intentionally does not add HTTP ingestion endpoints. Phase 7 should
+reuse this canonical domain layer from authenticated ingestion APIs and add
+batch acceptance, capture policy, redaction, idempotency, outbox processing, and
+per-record accepted/rejected responses.
 
 ---
 
@@ -755,23 +796,25 @@ Make instrumentation easy enough that another developer would willingly use it.
 
 ## SDK package structure
 
+```text
 agentproof/
-**init**.py
-client.py
-config.py
-context.py
-trace.py
-span.py
-decorators.py
-transport/
-base.py
-sync_http.py
-async_http.py
-exporters/
-batching.py
-schemas/
-integrations/
-exceptions.py
+├── __init__.py
+├── client.py
+├── config.py
+├── context.py
+├── trace.py
+├── span.py
+├── decorators.py
+├── exceptions.py
+├── transport/
+│ ├── base.py
+│ ├── sync_http.py
+│ └── async_http.py
+├── exporters/
+│ └── batching.py
+├── schemas/
+└── integrations/
+```
 
 ## Step 1: Configuration
 
@@ -1133,15 +1176,15 @@ Execute full datasets reliably through Celery.
 
 Allowed transitions:
 
-pending → preparing
-preparing → running
-running → completed
-running → completed_with_errors
-running → cancelling
-cancelling → cancelled
-pending → failed
-preparing → failed
-running → failed
+- pending → preparing
+- preparing → running
+- running → completed
+- running → completed_with_errors
+- running → cancelling
+- cancelling → cancelled
+- pending → failed
+- preparing → failed
+- running → failed
 
 Reject invalid transitions.
 
