@@ -38,6 +38,26 @@ def test_create_superuser_sets_required_flags() -> None:
     assert user.is_active is True
 
 
+def test_create_superuser_rejects_missing_staff_flag() -> None:
+    """Superusers cannot be created with inconsistent privilege flags."""
+    with pytest.raises(ValueError, match="is_staff=True"):
+        User.objects.create_superuser(
+            email="admin@example.com",
+            password="correct-horse-battery-staple",  # pragma: allowlist secret
+            is_staff=False,
+        )
+
+
+def test_create_superuser_rejects_missing_superuser_flag() -> None:
+    """Superusers cannot be created with inconsistent privilege flags."""
+    with pytest.raises(ValueError, match="is_superuser=True"):
+        User.objects.create_superuser(
+            email="admin@example.com",
+            password="correct-horse-battery-staple",  # pragma: allowlist secret
+            is_superuser=False,
+        )
+
+
 def test_user_requires_email() -> None:
     """A user should not be creatable without an email."""
     with pytest.raises(ValueError, match="email"):

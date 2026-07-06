@@ -23,6 +23,18 @@ def test_valid_incoming_request_id_is_preserved(
     assert response.headers["X-Request-ID"] == "request-12345678"
 
 
+def test_valid_incoming_request_id_is_stripped(
+    client: Client,
+) -> None:
+    """Surrounding whitespace should not be part of the correlation id."""
+    response = client.get(
+        "/health/live/",
+        headers={"X-Request-ID": " request-12345678 "},
+    )
+
+    assert response.headers["X-Request-ID"] == "request-12345678"
+
+
 def test_invalid_incoming_request_id_is_replaced(
     client: Client,
 ) -> None:

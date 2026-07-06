@@ -430,6 +430,10 @@ Additional Phase 4 exit criteria:
 
 # Phase 5: Build secure API keys
 
+Status: Implemented at the management and authentication-check layer. Final
+phase validation still requires a fresh `make schema` and `make check` run after
+the latest documentation/API changes.
+
 ## Objective
 
 Authenticate SDK and ingestion requests safely.
@@ -448,6 +452,30 @@ Authenticate SDK and ingestion requests safely.
 10. Add per-key rate limits.
 11. Update last-used timestamp outside the critical request path.
 12. Add audit events.
+
+## Current implementation
+
+* Environment-scoped API keys live in the `api_keys` app.
+* Key values use the `ap_live_<prefix>_<secret>` format.
+* Creation returns plaintext once and stores only the public prefix plus a
+  Django password hash of the secret.
+* Keys carry organization, project, environment, scopes, creator, expiration,
+  revocation, and last-used metadata.
+* Browser-authenticated management endpoints list, create, and revoke keys.
+* Bearer-token authentication validates presented keys for an environment and
+  required scope.
+* Revocation, expiration, wrong environment, wrong scope, and malformed keys are
+  rejected.
+* Per-key throttling uses the public key prefix.
+* `last_used_at` is updated asynchronously through Celery.
+* Creation and revocation write audit events without storing plaintext secrets.
+
+Implemented endpoints:
+
+* `GET /api/v1/environments/{environment_id}/api-keys/`
+* `POST /api/v1/environments/{environment_id}/api-keys/`
+* `POST /api/v1/api-keys/{api_key_id}/revoke/`
+* `POST /api/v1/environments/{environment_id}/auth-check/`
 
 ## Suggested scopes
 
@@ -468,6 +496,18 @@ Authenticate SDK and ingestion requests safely.
 * Timing-safe verification function is used.
 * Key value never appears in logs.
 
+Current test coverage lives in `backend/tests/test_api_keys.py` and covers
+hashed storage, one-time plaintext API responses, audit events, revocation,
+expiration, wrong environment, wrong scope, prefix-collision retry/failure,
+viewer permissions, revoke behavior, and bearer auth-check behavior.
+
+## Remaining boundary
+
+Phase 5 establishes the API-key security primitive and an auth-check endpoint.
+Actual trace ingestion endpoints are part of the next ingestion phase and should
+reuse `EnvironmentAPIKeyAuthentication` with the required scope for each write
+path.
+
 ## Python concepts practised
 
 * Secure random generation
@@ -484,6 +524,8 @@ A request authenticated with a valid environment key reaches a protected test en
 ---
 
 # Phase 6: Define the telemetry domain
+
+Status: Implemented and validated with `make check`.
 
 ## Objective
 
@@ -573,6 +615,45 @@ Generate random span trees and verify:
 ## Exit criteria
 
 Canonical traces can be validated and persisted through a service without an HTTP endpoint.
+
+## Current implementation
+
+Phase 6 is implemented in the `telemetry` app.
+
+Implemented backend surface:
+
+* Durable models: `Trace`, `Span`, `SpanEvent`, and `TraceAnnotation`.
+* Domain enums: trace status, span status, and span type. Capture mode remains
+  owned by the existing project/environment configuration.
+* Frozen canonical domain objects for traces, spans, span events, token usage,
+  errors, model metadata, and tool metadata.
+* Native AgentProof Pydantic envelopes for trace, span, event, token, error,
+  model, and tool payloads.
+* `TelemetryNormalizer` protocol with native AgentProof and OpenTelemetry-style
+  normalizers.
+* Trace-tree validation for duplicate span identifiers, missing parents, cycles,
+  timestamp ordering, child timing, and root-span determination.
+* `persist_canonical_trace` service for validating and persisting canonical
+  traces, spans, and span events in one transaction.
+* Django admin registration for the telemetry tables.
+
+Tests:
+
+* `backend/tests/test_telemetry.py` covers canonical persistence,
+  organization/project/environment consistency, duplicate trace identity,
+  malformed span trees, native normalization, OpenTelemetry-style normalization,
+  and Hypothesis-generated span tree validation.
+
+Validated gate:
+
+* `UV_CACHE_DIR=.uv-cache make check`
+
+## Remaining boundary
+
+Phase 6 intentionally does not add HTTP ingestion endpoints. Phase 7 should
+reuse this canonical domain layer from authenticated ingestion APIs and add
+batch acceptance, capture policy, redaction, idempotency, outbox processing, and
+per-record accepted/rejected responses.
 
 ---
 
@@ -715,23 +796,25 @@ Make instrumentation easy enough that another developer would willingly use it.
 
 ## SDK package structure
 
+```text
 agentproof/
-**init**.py
-client.py
-config.py
-context.py
-trace.py
-span.py
-decorators.py
-transport/
-base.py
-sync_http.py
-async_http.py
-exporters/
-batching.py
-schemas/
-integrations/
-exceptions.py
+├── __init__.py
+├── client.py
+├── config.py
+├── context.py
+├── trace.py
+├── span.py
+├── decorators.py
+├── exceptions.py
+├── transport/
+│ ├── base.py
+│ ├── sync_http.py
+│ └── async_http.py
+├── exporters/
+│ └── batching.py
+├── schemas/
+└── integrations/
+```
 
 ## Step 1: Configuration
 
@@ -1093,15 +1176,15 @@ Execute full datasets reliably through Celery.
 
 Allowed transitions:
 
-pending → preparing
-preparing → running
-running → completed
-running → completed_with_errors
-running → cancelling
-cancelling → cancelled
-pending → failed
-preparing → failed
-running → failed
+- pending → preparing
+- preparing → running
+- running → completed
+- running → completed_with_errors
+- running → cancelling
+- cancelling → cancelled
+- pending → failed
+- preparing → failed
+- running → failed
 
 Reject invalid transitions.
 

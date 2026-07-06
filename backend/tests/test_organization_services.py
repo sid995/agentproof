@@ -8,6 +8,7 @@ from django.core import mail
 from agentproof_backend.apps.audit.context import AuditContext
 from agentproof_backend.apps.audit.models import AuditEvent
 from agentproof_backend.apps.organizations.exceptions import (
+    InvitationAlreadyAccepted,
     InvitationEmailMismatch,
     LastOwnerRequired,
     OrganizationPermissionDenied,
@@ -120,6 +121,38 @@ def test_matching_user_can_accept_invitation() -> None:
 
     result.invitation.refresh_from_db()
     assert result.invitation.accepted_at is not None
+
+
+def test_accepted_invitation_cannot_be_reused() -> None:
+    owner = create_user(
+        email="owner@example.com",
+    )
+    invited_user = create_user(
+        email="member@example.com",
+    )
+    organization, _membership = create_test_organization(
+        owner=owner,
+    )
+    result = create_invitation(
+        actor=owner,
+        organization=organization,
+        email=invited_user.email,
+        role=InvitationRole.DEVELOPER,
+        audit_context=AUDIT_CONTEXT,
+    )
+
+    accept_invitation(
+        actor=invited_user,
+        token=result.token,
+        audit_context=AUDIT_CONTEXT,
+    )
+
+    with pytest.raises(InvitationAlreadyAccepted):
+        accept_invitation(
+            actor=invited_user,
+            token=result.token,
+            audit_context=AUDIT_CONTEXT,
+        )
 
 
 def test_invitation_rejects_another_email() -> None:

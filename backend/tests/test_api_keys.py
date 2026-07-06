@@ -6,10 +6,15 @@ from typing import Any
 import pytest
 from django.contrib.auth.hashers import check_password
 from django.utils import timezone
+from rest_framework import status
 from rest_framework.test import APIClient
 
 from agentproof_backend.apps.accounts.models import User
-from agentproof_backend.apps.api_keys.exceptions import APIKeyAuthenticationFailed, APIKeyConflict
+from agentproof_backend.apps.api_keys.exceptions import (
+    APIKeyAuthenticationFailed,
+    APIKeyConflict,
+    InvalidAPIKeyConfiguration,
+)
 from agentproof_backend.apps.api_keys.models import APIKey, APIKeyScope
 from agentproof_backend.apps.api_keys.services import (
     create_api_key,
@@ -21,7 +26,7 @@ from agentproof_backend.apps.audit.context import AuditContext
 from agentproof_backend.apps.audit.models import AuditEvent
 from agentproof_backend.apps.organizations.constants import ACTIVE_ORGANIZATION_SESSION_KEY
 from agentproof_backend.apps.organizations.models import MembershipRole
-from agentproof_backend.apps.projects.models import CaptureMode, Environment, Project
+from agentproof_backend.apps.projects.models import CaptureMode, Environment, Project, ResourceStatus
 from agentproof_backend.apps.projects.services import create_project
 from backend.tests.organization_helpers import add_member, create_test_organization, create_user
 
@@ -109,6 +114,42 @@ def test_create_api_key_records_audit_event() -> None:
         resource_type="api_key",
         resource_id=str(api_key.id),
     ).exists()
+
+
+def test_create_api_key_normalizes_duplicate_scopes() -> None:
+    owner = create_user(email="owner@example.com")
+    _project, environment = create_project_with_default_environment(actor=owner)
+
+    api_key, _plaintext = create_test_api_key(
+        actor=owner,
+        environment=environment,
+        scopes=[APIKeyScope.TRACES_WRITE, APIKeyScope.TRACES_WRITE, APIKeyScope.TRACES_READ],
+    )
+
+    assert api_key.scopes == [APIKeyScope.TRACES_WRITE, APIKeyScope.TRACES_READ]
+
+
+def test_create_api_key_rejects_inactive_environment() -> None:
+    owner = create_user(email="owner@example.com")
+    _project, environment = create_project_with_default_environment(actor=owner)
+    environment.status = ResourceStatus.ARCHIVED
+    environment.save(update_fields=("status", "updated_at"))
+
+    with pytest.raises(InvalidAPIKeyConfiguration):
+        create_api_key(
+            actor=owner,
+            environment=environment,
+            name="Archived key",
+            scopes=[APIKeyScope.TRACES_WRITE],
+            expires_at=None,
+            audit_context=AUDIT_CONTEXT,
+        )
+
+
+def test_parse_plaintext_key_rejects_malformed_values() -> None:
+    for plaintext in ("", "not-a-key", "ap_live_onlyprefix_", "ap_test_prefix_secret"):
+        with pytest.raises(APIKeyAuthenticationFailed):
+            parse_plaintext_key(plaintext)
 
 
 def test_verify_api_key_accepts_valid_environment_and_scope() -> None:
@@ -277,7 +318,7 @@ def test_api_key_value_is_only_returned_on_create_api() -> None:
     )
     list_response = client.get(f"/api/v1/environments/{environment.id}/api-keys/")
 
-    assert create_response.status_code == 201
+    assert create_response.status_code == status.HTTP_201_CREATED
     assert create_response.json()["api_key"].startswith("ap_live_")
     assert "key_hash" not in create_response.json()["record"]
     assert "api_key" not in list_response.json()[0]
@@ -301,7 +342,7 @@ def test_viewer_can_list_but_cannot_create_api_key() -> None:
         format="json",
     )
 
-    assert list_response.status_code == 200
+    assert list_response.status_code == status.HTTP_200_OK
     assert len(list_response.json()) == 1
     assert create_response.status_code == 403
 

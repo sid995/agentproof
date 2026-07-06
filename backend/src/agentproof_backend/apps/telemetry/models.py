@@ -1,0 +1,338 @@
+"""Canonical telemetry database models"""
+
+from collections.abc import Iterable
+from typing import ClassVar
+
+from django.conf import settings
+from django.db import models
+from django.db.models import Q
+from django.db.models.base import ModelBase
+from django.db.models.constraints import BaseConstraint
+
+from agentproof_backend.apps.common.models import TimeStampedUUIDModel, UUIDModel
+from agentproof_backend.apps.projects.models import Environment
+
+
+class TraceStatus(models.TextChoices):
+    """Canonical lifecycle outcome for one trace"""
+
+    SUCCESS = "success", "Success"
+    ERROR = "error", "Error"
+    PARTIAL = "partial", "Partial"
+    UNKNOWN = "unknown", "Unknown"
+
+
+class SpanStatus(models.TextChoices):
+    """Canonical lifecycle outcome for one span."""
+
+    SUCCESS = "success", "Success"
+    ERROR = "error", "Error"
+    UNSET = "unset", "Unset"
+
+
+class SpanType(models.TextChoices):
+    """Canonical operation categories inside a trace tree."""
+
+    AGENT = "agent", "Agent"
+    MODEL = "model", "Model"
+    TOOL = "tool", "Tool"
+    RETRIEVAL = "retrieval", "Retrieval"
+    GUARDRAIL = "guardrail", "Guardrail"
+    WORKFLOW = "workflow", "Workflow"
+    CUSTOM = "custom", "Custom"
+
+
+class Trace(TimeStampedUUIDModel):
+    """Complete model for AI agent execution"""
+
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE, related_name="traces")
+    project = models.ForeignKey("projects.Project", on_delete=models.CASCADE, related_name="traces")
+    environment = models.ForeignKey("projects.Environment", on_delete=models.CASCADE, related_name="traces")
+    external_trace_id = models.CharField(max_length=160)
+    schema_version = models.CharField(max_length=60)
+    name = models.CharField(max_length=200)
+    status = models.CharField(max_length=20, choices=TraceStatus.choices, default=TraceStatus.UNKNOWN, db_index=True)
+    started_at = models.DateTimeField(db_index=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    duration_ms = models.PositiveBigIntegerField(null=True, blank=True)
+    input = models.JSONField(default=dict, blank=True)
+    output = models.JSONField(default=dict, blank=True)
+    attributes = models.JSONField(default=dict, blank=True)
+    tags = models.JSONField(default=list, blank=True)
+    error_type = models.CharField(max_length=160, blank=True)
+    error_message = models.TextField(blank=True)
+    total_input_tokens = models.PositiveIntegerField(null=True, blank=True)
+    total_output_tokens = models.PositiveIntegerField(null=True, blank=True)
+    estimated_cost = models.DecimalField(max_digits=12, decimal_places=6, null=True, blank=True)
+    user_identifier = models.CharField(max_length=200, blank=True)
+    session_identifier = models.CharField(max_length=200, blank=True, db_index=True)
+
+    class Meta:
+        ordering = ("-started_at", "-created_at", "id")
+        constraints: ClassVar[list[BaseConstraint]] = [
+            models.UniqueConstraint(
+                fields=("organization", "environment", "external_trace_id", "schema_version"),
+                name="unique_trace_identity_per_env",
+            ),
+            models.CheckConstraint(condition=Q(status__in=TraceStatus.values), name="trace_status_valid"),
+            models.CheckConstraint(
+                condition=Q(duration_ms__isnull=True) | Q(duration_ms__gte=0),
+                name="trace_duration_non_negative",
+            ),
+            models.CheckConstraint(
+                condition=Q(ended_at__isnull=True) | Q(ended_at__gte=models.F("started_at")),
+                name="trace_ended_at_after_started_at",
+            ),
+            models.CheckConstraint(
+                condition=Q(estimated_cost__isnull=True) | Q(estimated_cost__gte=0),
+                name="trace_estimated_cost_non_negative",
+            ),
+        ]
+        indexes: ClassVar[list[models.Index]] = [
+            models.Index(
+                fields=("organization", "project", "environment", "-started_at"),
+                name="trace_scope_started_idx",
+            ),
+            models.Index(fields=("organization", "external_trace_id"), name="trace_org_external_idx"),
+            models.Index(fields=("organization", "status", "-started_at"), name="trace_org_status_idx"),
+            models.Index(fields=("project", "session_identifier"), name="trace_project_session_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.environment} / {self.name}"
+
+    def save(
+        self,
+        *,
+        force_insert: bool | tuple[ModelBase, ...] = False,
+        force_update: bool = False,
+        using: str | None = None,
+        update_fields: Iterable[str] | None = None,
+    ) -> None:
+        if self.environment_id is not None:
+            if not self._state.adding and self.pk is not None:
+                previous_environment_id = type(self).objects.only("environment_id").get(pk=self.pk).environment_id
+                if previous_environment_id != self.environment_id:
+                    raise ValueError("Trace environment cannot be changed after creation.")
+
+            environment_scope = self._state.fields_cache.get("environment")
+            if environment_scope is not None:
+                self.project_id = environment_scope.project_id
+                self.organization_id = environment_scope.organization_id
+                if update_fields is not None:
+                    update_fields = set(update_fields) | {"project", "organization"}
+            elif getattr(self, "project_id", None) is None or getattr(self, "organization_id", None) is None:
+                environment_scope = Environment.objects.only("organization_id", "project_id").get(
+                    pk=self.environment_id
+                )
+                self.project_id = environment_scope.project_id
+                self.organization_id = environment_scope.organization_id
+                if update_fields is not None:
+                    update_fields = set(update_fields) | {"project", "organization"}
+
+        super().save(
+            force_insert=force_insert,
+            force_update=force_update,
+            using=using,
+            update_fields=update_fields,
+        )
+
+
+class Span(TimeStampedUUIDModel):
+    """A timed operation within a trace."""
+
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE, related_name="spans")
+    trace = models.ForeignKey(Trace, on_delete=models.CASCADE, related_name="spans")
+    external_span_id = models.CharField(max_length=160)
+    parent_external_span_id = models.CharField(max_length=160, blank=True)
+    span_type = models.CharField(max_length=30, choices=SpanType.choices, default=SpanType.CUSTOM, db_index=True)
+    name = models.CharField(max_length=200)
+    status = models.CharField(max_length=20, choices=SpanStatus.choices, default=SpanStatus.UNSET, db_index=True)
+    started_at = models.DateTimeField(db_index=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    duration_ms = models.PositiveBigIntegerField(null=True, blank=True)
+    attributes = models.JSONField(default=dict, blank=True)
+    input = models.JSONField(default=dict, blank=True)
+    output = models.JSONField(default=dict, blank=True)
+    error_type = models.CharField(max_length=160, blank=True)
+    error_message = models.TextField(blank=True)
+    provider_name = models.CharField(max_length=120, blank=True)
+    model_name = models.CharField(max_length=160, blank=True)
+    input_tokens = models.PositiveIntegerField(null=True, blank=True)
+    output_tokens = models.PositiveIntegerField(null=True, blank=True)
+    estimated_cost = models.DecimalField(max_digits=12, decimal_places=6, null=True, blank=True)
+
+    class Meta:
+        ordering = ("started_at", "id")
+        constraints: ClassVar[list[BaseConstraint]] = [
+            models.UniqueConstraint(fields=("trace", "external_span_id"), name="unique_span_identity_per_trace"),
+            models.CheckConstraint(condition=Q(span_type__in=SpanType.values), name="span_type_valid"),
+            models.CheckConstraint(condition=Q(status__in=SpanStatus.values), name="span_status_valid"),
+            models.CheckConstraint(
+                condition=Q(duration_ms__isnull=True) | Q(duration_ms__gte=0),
+                name="span_duration_non_negative",
+            ),
+            models.CheckConstraint(
+                condition=Q(ended_at__isnull=True) | Q(ended_at__gte=models.F("started_at")),
+                name="span_ended_at_after_started_at",
+            ),
+            models.CheckConstraint(
+                condition=Q(estimated_cost__isnull=True) | Q(estimated_cost__gte=0),
+                name="span_estimated_cost_non_negative",
+            ),
+        ]
+        indexes: ClassVar[list[models.Index]] = [
+            models.Index(fields=("trace", "parent_external_span_id"), name="span_trace_parent_idx"),
+            models.Index(fields=("organization", "span_type", "-started_at"), name="span_org_type_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.trace.external_trace_id} / {self.name}"
+
+    def save(
+        self,
+        *,
+        force_insert: bool | tuple[ModelBase, ...] = False,
+        force_update: bool = False,
+        using: str | None = None,
+        update_fields: Iterable[str] | None = None,
+    ) -> None:
+        if self.trace_id is not None:
+            if not self._state.adding and self.pk is not None:
+                previous_trace_id = type(self).objects.only("trace_id").get(pk=self.pk).trace_id
+                if previous_trace_id != self.trace_id:
+                    raise ValueError("Span trace cannot be changed after creation.")
+
+            trace_scope = self._state.fields_cache.get("trace")
+            if trace_scope is not None:
+                self.organization_id = trace_scope.organization_id
+                if update_fields is not None:
+                    update_fields = set(update_fields) | {"organization"}
+            elif getattr(self, "organization_id", None) is None:
+                trace_scope = Trace.objects.only("organization_id").get(pk=self.trace_id)
+                self.organization_id = trace_scope.organization_id
+                if update_fields is not None:
+                    update_fields = set(update_fields) | {"organization"}
+
+        super().save(
+            force_insert=force_insert,
+            force_update=force_update,
+            using=using,
+            update_fields=update_fields,
+        )
+
+
+class SpanEvent(UUIDModel):
+    """A point-in-time event attached to a span."""
+
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE, related_name="span_events")
+    span = models.ForeignKey(Span, on_delete=models.CASCADE, related_name="events")
+    name = models.CharField(max_length=200)
+    occurred_at = models.DateTimeField(db_index=True)
+    attributes = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ("occurred_at", "id")
+        indexes: ClassVar[list[models.Index]] = [
+            models.Index(fields=("span", "occurred_at"), name="span_event_time_idx"),
+            models.Index(fields=("organization", "name"), name="span_event_org_name_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.span.external_span_id} / {self.name}"
+
+    def save(
+        self,
+        *,
+        force_insert: bool | tuple[ModelBase, ...] = False,
+        force_update: bool = False,
+        using: str | None = None,
+        update_fields: Iterable[str] | None = None,
+    ) -> None:
+        if self.span_id is not None:
+            if not self._state.adding and self.pk is not None:
+                previous_span_id = type(self).objects.only("span_id").get(pk=self.pk).span_id
+                if previous_span_id != self.span_id:
+                    raise ValueError("Span event parent span cannot be changed after creation.")
+
+            span_scope = self._state.fields_cache.get("span")
+            if span_scope is not None:
+                self.organization_id = span_scope.organization_id
+                if update_fields is not None:
+                    update_fields = set(update_fields) | {"organization"}
+            elif getattr(self, "organization_id", None) is None:
+                span_scope = Span.objects.only("organization_id").get(pk=self.span_id)
+                self.organization_id = span_scope.organization_id
+                if update_fields is not None:
+                    update_fields = set(update_fields) | {"organization"}
+
+        super().save(
+            force_insert=force_insert,
+            force_update=force_update,
+            using=using,
+            update_fields=update_fields,
+        )
+
+
+class TraceAnnotation(UUIDModel):
+    """Human-authored metadata attached to a trace."""
+
+    organization = models.ForeignKey(
+        "organizations.Organization",
+        on_delete=models.CASCADE,
+        related_name="trace_annotations",
+    )
+    trace = models.ForeignKey(Trace, on_delete=models.CASCADE, related_name="annotations")
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="trace_annotations",
+    )
+    annotation_type = models.CharField(max_length=80)
+    value = models.JSONField(default=dict, blank=True)
+    comment = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ("-created_at", "id")
+        indexes: ClassVar[list[models.Index]] = [
+            models.Index(fields=("organization", "annotation_type"), name="annotation_org_type_idx"),
+            models.Index(fields=("trace", "-created_at"), name="annotation_trace_time_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.trace.external_trace_id} / {self.annotation_type}"
+
+    def save(
+        self,
+        *,
+        force_insert: bool | tuple[ModelBase, ...] = False,
+        force_update: bool = False,
+        using: str | None = None,
+        update_fields: Iterable[str] | None = None,
+    ) -> None:
+        if self.trace_id is not None:
+            if not self._state.adding and self.pk is not None:
+                previous_trace_id = type(self).objects.only("trace_id").get(pk=self.pk).trace_id
+                if previous_trace_id != self.trace_id:
+                    raise ValueError("Trace annotation parent trace cannot be changed after creation.")
+
+            trace_scope = self._state.fields_cache.get("trace")
+            if trace_scope is not None:
+                self.organization_id = trace_scope.organization_id
+                if update_fields is not None:
+                    update_fields = set(update_fields) | {"organization"}
+            elif getattr(self, "organization_id", None) is None:
+                trace_scope = Trace.objects.only("organization_id").get(pk=self.trace_id)
+                self.organization_id = trace_scope.organization_id
+                if update_fields is not None:
+                    update_fields = set(update_fields) | {"organization"}
+
+        super().save(
+            force_insert=force_insert,
+            force_update=force_update,
+            using=using,
+            update_fields=update_fields,
+        )
