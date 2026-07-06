@@ -115,11 +115,20 @@ class Trace(TimeStampedUUIDModel):
                 if previous_environment_id != self.environment_id:
                     raise ValueError("Trace environment cannot be changed after creation.")
 
-            environment_scope = Environment.objects.only("organization_id", "project_id").get(pk=self.environment_id)
-            self.project_id = environment_scope.project_id
-            self.organization_id = environment_scope.organization_id
-            if update_fields is not None:
-                update_fields = set(update_fields) | {"project", "organization"}
+            environment_scope = self._state.fields_cache.get("environment")
+            if environment_scope is not None:
+                self.project_id = environment_scope.project_id
+                self.organization_id = environment_scope.organization_id
+                if update_fields is not None:
+                    update_fields = set(update_fields) | {"project", "organization"}
+            elif getattr(self, "project_id", None) is None or getattr(self, "organization_id", None) is None:
+                environment_scope = Environment.objects.only("organization_id", "project_id").get(
+                    pk=self.environment_id
+                )
+                self.project_id = environment_scope.project_id
+                self.organization_id = environment_scope.organization_id
+                if update_fields is not None:
+                    update_fields = set(update_fields) | {"project", "organization"}
 
         super().save(
             force_insert=force_insert,
@@ -194,10 +203,16 @@ class Span(TimeStampedUUIDModel):
                 if previous_trace_id != self.trace_id:
                     raise ValueError("Span trace cannot be changed after creation.")
 
-            trace_scope = Trace.objects.only("organization_id").get(pk=self.trace_id)
-            self.organization_id = trace_scope.organization_id
-            if update_fields is not None:
-                update_fields = set(update_fields) | {"organization"}
+            trace_scope = self._state.fields_cache.get("trace")
+            if trace_scope is not None:
+                self.organization_id = trace_scope.organization_id
+                if update_fields is not None:
+                    update_fields = set(update_fields) | {"organization"}
+            elif getattr(self, "organization_id", None) is None:
+                trace_scope = Trace.objects.only("organization_id").get(pk=self.trace_id)
+                self.organization_id = trace_scope.organization_id
+                if update_fields is not None:
+                    update_fields = set(update_fields) | {"organization"}
 
         super().save(
             force_insert=force_insert,
@@ -240,10 +255,16 @@ class SpanEvent(UUIDModel):
                 if previous_span_id != self.span_id:
                     raise ValueError("Span event parent span cannot be changed after creation.")
 
-            span_scope = Span.objects.only("organization_id").get(pk=self.span_id)
-            self.organization_id = span_scope.organization_id
-            if update_fields is not None:
-                update_fields = set(update_fields) | {"organization"}
+            span_scope = self._state.fields_cache.get("span")
+            if span_scope is not None:
+                self.organization_id = span_scope.organization_id
+                if update_fields is not None:
+                    update_fields = set(update_fields) | {"organization"}
+            elif getattr(self, "organization_id", None) is None:
+                span_scope = Span.objects.only("organization_id").get(pk=self.span_id)
+                self.organization_id = span_scope.organization_id
+                if update_fields is not None:
+                    update_fields = set(update_fields) | {"organization"}
 
         super().save(
             force_insert=force_insert,
@@ -298,10 +319,16 @@ class TraceAnnotation(UUIDModel):
                 if previous_trace_id != self.trace_id:
                     raise ValueError("Trace annotation parent trace cannot be changed after creation.")
 
-            trace_scope = Trace.objects.only("organization_id").get(pk=self.trace_id)
-            self.organization_id = trace_scope.organization_id
-            if update_fields is not None:
-                update_fields = set(update_fields) | {"organization"}
+            trace_scope = self._state.fields_cache.get("trace")
+            if trace_scope is not None:
+                self.organization_id = trace_scope.organization_id
+                if update_fields is not None:
+                    update_fields = set(update_fields) | {"organization"}
+            elif getattr(self, "organization_id", None) is None:
+                trace_scope = Trace.objects.only("organization_id").get(pk=self.trace_id)
+                self.organization_id = trace_scope.organization_id
+                if update_fields is not None:
+                    update_fields = set(update_fields) | {"organization"}
 
         super().save(
             force_insert=force_insert,

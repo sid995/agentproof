@@ -3,6 +3,7 @@
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from itertools import count
+from unittest.mock import patch
 
 import pytest
 from django.db import IntegrityError, transaction
@@ -346,6 +347,51 @@ def test_telemetry_models_derive_organization_from_parent_scope() -> None:
     assert span.organization == organization
     assert event.organization == organization
     assert annotation.organization == organization
+
+
+def test_telemetry_models_reuse_cached_parent_scope_on_create() -> None:
+    environment, project, organization = create_project_with_default_environment()
+
+    with (
+        patch("agentproof_backend.apps.telemetry.models.Environment.objects.only") as environment_only,
+        patch("agentproof_backend.apps.telemetry.models.Trace.objects.only") as trace_only,
+        patch("agentproof_backend.apps.telemetry.models.Span.objects.only") as span_only,
+    ):
+        trace = Trace.objects.create(
+            organization=organization,
+            project=project,
+            environment=environment,
+            external_trace_id="cached-scope-trace",
+            schema_version="agentproof.v1",
+            name="Cached scope trace",
+            status=TraceStatus.UNKNOWN,
+            started_at=STARTED_AT,
+        )
+        span = Span.objects.create(
+            organization=organization,
+            trace=trace,
+            external_span_id="cached-scope-span",
+            span_type=SpanType.CUSTOM,
+            name="Cached scope span",
+            status=SpanStatus.UNSET,
+            started_at=STARTED_AT,
+        )
+        SpanEvent.objects.create(
+            organization=organization,
+            span=span,
+            name="Cached scope event",
+            occurred_at=STARTED_AT,
+        )
+        TraceAnnotation.objects.create(
+            organization=organization,
+            trace=trace,
+            annotation_type="note",
+            value={"rating": "useful"},
+        )
+
+    environment_only.assert_not_called()
+    trace_only.assert_not_called()
+    span_only.assert_not_called()
 
 
 def test_telemetry_parent_relationships_are_immutable_after_creation() -> None:
