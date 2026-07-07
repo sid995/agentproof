@@ -96,6 +96,8 @@ class TraceContext:
     def add_span(self, span: SpanContext) -> None:
         """Attach a finished span to this trace."""
 
+        if self._finished:
+            raise RuntimeError("trace has already finished")
         self._spans.append(span.to_envelope())
 
     def set_input(self, value: Mapping[str, Any]) -> None:

@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import asyncio
 import threading
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 import pytest
 
+import agentproof.decorators as decorators_module
+import agentproof.span as span_module
 from agentproof import AgentProofClient, trace_agent, trace_model, trace_tool
 from agentproof.exceptions import AgentProofConfigError, AgentProofQueueFullError, AgentProofTransportError
+from agentproof.schemas.native import TraceEnvelope
+from agentproof.span import SpanContext
 
 
 class RecordingTransport:
@@ -42,6 +46,27 @@ class RecordingTransport:
 
     def close(self) -> None:
         self.closed = True
+
+
+class BlockingTransport(RecordingTransport):
+    """Transport that blocks until released by the test."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.started = threading.Event()
+        self.release = threading.Event()
+
+    def post_json(
+        self,
+        url: str,
+        *,
+        headers: Mapping[str, str],
+        payload: Mapping[str, Any],
+        request_timeout: float,
+    ) -> None:
+        self.started.set()
+        self.release.wait(timeout=5)
+        super().post_json(url, headers=headers, payload=payload, request_timeout=request_timeout)
 
 
 def make_client(
@@ -122,6 +147,53 @@ def test_exception_marks_trace_and_span_error() -> None:
     assert trace_payload["spans"][0]["error"]["error_type"] == "RuntimeError"
 
 
+def test_finished_span_rejects_mutation_helpers() -> None:
+    transport = RecordingTransport()
+    client = make_client(transport)
+
+    with client.trace("agent") as trace:
+        with trace.span("work") as span:
+            pass
+
+        mutations = [
+            lambda: span.set_input({"value": 1}),
+            lambda: span.set_output({"value": 1}),
+            lambda: span.set_attributes({"value": 1}),
+            lambda: span.set_token_usage(input_tokens=1, output_tokens=2, estimated_cost="0.01"),
+            lambda: span.set_model(provider_name="provider", model_name="model"),
+            lambda: span.set_tool(tool_name="tool", tool_call_id="call"),
+            lambda: span.add_event("event", {"value": 1}),
+        ]
+
+        for mutate in mutations:
+            with pytest.raises(RuntimeError, match="span has already finished"):
+                mutate()
+
+    client.shutdown()
+
+
+def test_span_elapsed_seconds_returns_monotonic_delta(monkeypatch: pytest.MonkeyPatch) -> None:
+    readings = iter([100.0, 102.5])
+    monkeypatch.setattr(span_module.time, "monotonic", lambda: next(readings))
+
+    span = SpanContext(trace=object(), name="work")
+
+    assert span.elapsed_seconds() == 2.5
+
+
+def test_finished_trace_rejects_late_span_attachment() -> None:
+    client = make_client(RecordingTransport())
+    trace = client.trace("agent")
+    trace.finish()
+
+    span = trace.span("late")
+
+    with pytest.raises(RuntimeError, match="trace has already finished"):
+        span.finish()
+
+    client.shutdown()
+
+
 def test_async_task_context_is_isolated() -> None:
     transport = RecordingTransport()
     client = make_client(transport)
@@ -165,6 +237,85 @@ def test_decorators_capture_sync_functions() -> None:
     assert {span["span_type"] for span in trace_payload["spans"]} == {"agent", "tool"}
 
 
+def test_decorators_reuse_lazy_default_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    created_clients: list[FakeDefaultClient] = []
+
+    class FakeDefaultSpan:
+        def __enter__(self) -> FakeDefaultSpan:
+            return self
+
+        def __exit__(self, _exc_type: object, _exc: object, _tb: object) -> None:
+            return None
+
+    class FakeDefaultTrace:
+        def __enter__(self) -> FakeDefaultTrace:
+            return self
+
+        def __exit__(self, _exc_type: object, _exc: object, _tb: object) -> None:
+            return None
+
+        def span(self, _name: str, *, span_type: str) -> FakeDefaultSpan:
+            assert span_type == "agent"
+            return FakeDefaultSpan()
+
+    class FakeDefaultClient:
+        def __init__(self) -> None:
+            created_clients.append(self)
+
+        def trace(self, _name: str) -> FakeDefaultTrace:
+            return FakeDefaultTrace()
+
+    monkeypatch.setattr(decorators_module, "_default_client", None)
+    monkeypatch.setattr(decorators_module, "AgentProofClient", FakeDefaultClient)
+
+    @decorators_module.trace_agent
+    def run_agent() -> str:
+        return "ok"
+
+    assert run_agent() == "ok"
+    assert run_agent() == "ok"
+    assert len(created_clients) == 1
+
+
+def test_span_decorator_without_active_trace_does_not_create_default_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    created_clients: list[object] = []
+
+    class FakeDefaultClient:
+        def __init__(self) -> None:
+            created_clients.append(self)
+
+    monkeypatch.setattr(decorators_module, "_default_client", None)
+    monkeypatch.setattr(decorators_module, "AgentProofClient", FakeDefaultClient)
+
+    @decorators_module.trace_tool
+    def run_tool() -> str:
+        return "ok"
+
+    assert run_tool() == "ok"
+    assert created_clients == []
+
+
+def test_async_span_decorator_without_active_trace_does_not_create_default_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created_clients: list[object] = []
+
+    class FakeDefaultClient:
+        def __init__(self) -> None:
+            created_clients.append(self)
+
+    monkeypatch.setattr(decorators_module, "_default_client", None)
+    monkeypatch.setattr(decorators_module, "AgentProofClient", FakeDefaultClient)
+
+    @decorators_module.trace_model
+    async def run_model() -> str:
+        await asyncio.sleep(0)
+        return "ok"
+
+    assert asyncio.run(run_model()) == "ok"
+    assert created_clients == []
+
+
 def test_decorators_capture_async_functions() -> None:
     transport = RecordingTransport()
     client = make_client(transport)
@@ -204,6 +355,79 @@ def test_strict_backpressure_surfaces_on_flush() -> None:
 
     with pytest.raises(AgentProofQueueFullError):
         client.flush()
+
+
+def test_shutdown_closes_transport_when_flush_raises() -> None:
+    transport = RecordingTransport(fail_times=3)
+    client = make_client(transport)
+
+    with client.trace("agent") as trace, trace.span("work"):
+        pass
+
+    with pytest.raises(AgentProofTransportError):
+        client.shutdown()
+
+    assert transport.closed
+
+
+def test_enqueue_after_shutdown_starts_is_rejected() -> None:
+    transport = BlockingTransport()
+    client = make_client(transport)
+
+    with client.trace("agent") as trace, trace.span("work"):
+        pass
+
+    shutdown_error: list[BaseException] = []
+
+    def run_shutdown() -> None:
+        try:
+            client.shutdown()
+        except BaseException as exc:
+            shutdown_error.append(exc)
+
+    shutdown_thread = threading.Thread(target=run_shutdown)
+    shutdown_thread.start()
+    assert transport.started.wait(timeout=5)
+
+    client.capture(client.trace("after-shutdown-start").to_envelope())
+    transport.release.set()
+    shutdown_thread.join(timeout=5)
+
+    assert not shutdown_thread.is_alive()
+    assert transport.closed
+    assert len(transport.payloads) == 1
+    assert len(transport.payloads[0]["records"]) == 1
+    assert isinstance(shutdown_error[0], AgentProofQueueFullError)
+
+
+def test_worker_survives_unexpected_send_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    transport = RecordingTransport()
+    client = make_client(transport)
+    exporter = client._exporter
+    original_send_batch = exporter._send_batch
+    calls = 0
+
+    def flaky_send_batch(traces: Iterable[TraceEnvelope]) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise RuntimeError("unexpected exporter failure")
+        original_send_batch(traces)
+
+    monkeypatch.setattr(exporter, "_send_batch", flaky_send_batch)
+
+    with client.trace("first") as trace, trace.span("work"):
+        pass
+
+    with pytest.raises(RuntimeError, match="unexpected exporter failure"):
+        client.flush()
+
+    with client.trace("second") as trace, trace.span("work"):
+        pass
+
+    client.shutdown()
+
+    assert [payload["records"][0]["payload"]["name"] for payload in transport.payloads] == ["second"]
 
 
 def test_export_retries_transient_transport_failure() -> None:

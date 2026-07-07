@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import functools
 import inspect
+import threading
 from collections.abc import Callable
 from typing import Any
 
@@ -14,8 +15,22 @@ from agentproof.exceptions import AgentProofConfigError
 DecoratedFunction = Callable[..., Any]
 
 
+_default_client: AgentProofClient | None = None
+_default_client_lock = threading.Lock()
+
+
 def _client(client: AgentProofClient | None) -> AgentProofClient:
-    return client if client is not None else AgentProofClient()
+    """Return the explicit client or a shared lazy default client."""
+
+    if client is not None:
+        return client
+
+    global _default_client
+    if _default_client is None:
+        with _default_client_lock:
+            if _default_client is None:
+                _default_client = AgentProofClient()
+    return _default_client
 
 
 def _reject_generator(func: Callable[..., Any]) -> None:
@@ -50,12 +65,11 @@ def _decorator(
 
             @functools.wraps(func)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
-                sdk_client = _client(client)
                 trace = current_trace.get()
-                if trace is None and creates_trace:
-                    async with sdk_client.trace(span_name) as new_trace, new_trace.span(span_name, span_type=span_type):
-                        return await func(*args, **kwargs)
                 if trace is None:
+                    if not creates_trace:
+                        return await func(*args, **kwargs)
+                    sdk_client = _client(client)
                     async with sdk_client.trace(span_name) as new_trace, new_trace.span(span_name, span_type=span_type):
                         return await func(*args, **kwargs)
                 async with trace.span(span_name, span_type=span_type):
@@ -65,12 +79,11 @@ def _decorator(
 
         @functools.wraps(func)
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
-            sdk_client = _client(client)
             trace = current_trace.get()
-            if trace is None and creates_trace:
-                with sdk_client.trace(span_name) as new_trace, new_trace.span(span_name, span_type=span_type):
-                    return func(*args, **kwargs)
             if trace is None:
+                if not creates_trace:
+                    return func(*args, **kwargs)
+                sdk_client = _client(client)
                 with sdk_client.trace(span_name) as new_trace, new_trace.span(span_name, span_type=span_type):
                     return func(*args, **kwargs)
             with trace.span(span_name, span_type=span_type):

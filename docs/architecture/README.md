@@ -2327,8 +2327,8 @@ shape:
 ```
 
 Export uses a bounded in-memory queue, a background worker for synchronous
-clients, retry for transient transport failures, `flush()` / `aflush()`, and
-`shutdown()` / `ashutdown()`. SDK batch size is capped to the backend record
+clients, retry for transient transport failures, `flush()` / `async_flush()`, and
+`shutdown()` / `async_shutdown()`. SDK batch size is capped to the backend record
 limit, and batching also respects the backend 500-span request boundary.
 
 ---

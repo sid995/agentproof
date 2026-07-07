@@ -115,7 +115,6 @@ class AgentProofConfig:
         )
         if resolved_batch_size > MAX_BACKEND_RECORDS:
             raise AgentProofConfigError(f"batch_size must be less than or equal to {MAX_BACKEND_RECORDS}")
-
         resolved_flush_interval = _float_value(
             flush_interval_seconds or _optional_env("AGENTPROOF_FLUSH_INTERVAL_SECONDS"),
             name="flush_interval_seconds",
@@ -130,7 +129,11 @@ class AgentProofConfig:
             flush_interval_seconds=resolved_flush_interval,
             capture_mode=_capture_mode(capture_mode or _optional_env("AGENTPROOF_CAPTURE_MODE")),
             error_mode=_error_mode(error_mode or _optional_env("AGENTPROOF_ERROR_MODE")),
-            queue_size=_int_value(queue_size, name="queue_size", default=DEFAULT_QUEUE_SIZE),
+            queue_size=_int_value(
+                queue_size or _optional_env("AGENTPROOF_QUEUE_SIZE"),
+                name="queue_size",
+                default=DEFAULT_QUEUE_SIZE,
+            ),
         )
 
     @property

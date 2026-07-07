@@ -52,8 +52,8 @@ variables, then defaults.
 - `trace_retrieval`
 
 The SDK supports sync and async trace/span context managers, context propagation
-with `contextvars`, background batching, retry, `flush()` / `aflush()`, and
-`shutdown()` / `ashutdown()`.
+with `contextvars`, background batching, retry, `flush()` / `async_flush()`, and
+`shutdown()` / `async_shutdown()`.
 
 ## Local validation
 

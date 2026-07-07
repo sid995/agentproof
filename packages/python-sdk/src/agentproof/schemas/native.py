@@ -15,6 +15,21 @@ class FrozenEnvelope(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
+def validate_datetime_order(*, started_at: datetime, ended_at: datetime | None) -> None:
+    """Reject invalid ordering and mixed timezone-awareness."""
+
+    if ended_at is None:
+        return
+
+    try:
+        ends_before_start = ended_at < started_at
+    except TypeError as exc:
+        raise ValueError("started_at and ended_at must both be timezone-aware or both be timezone-naive") from exc
+
+    if ends_before_start:
+        raise ValueError("ended_at cannot be earlier than started_at")
+
+
 class TokenUsage(FrozenEnvelope):
     """Token accounting supplied by instrumentation."""
 
@@ -76,8 +91,7 @@ class SpanEnvelope(FrozenEnvelope):
     def validate_time_order(self) -> Self:
         """Reject spans that end before they start."""
 
-        if self.ended_at is not None and self.ended_at < self.started_at:
-            raise ValueError("ended_at cannot be earlier than started_at")
+        validate_datetime_order(started_at=self.started_at, ended_at=self.ended_at)
         return self
 
 
@@ -105,8 +119,7 @@ class TraceEnvelope(FrozenEnvelope):
     def validate_time_order(self) -> Self:
         """Reject traces that end before they start."""
 
-        if self.ended_at is not None and self.ended_at < self.started_at:
-            raise ValueError("ended_at cannot be earlier than started_at")
+        validate_datetime_order(started_at=self.started_at, ended_at=self.ended_at)
         return self
 
 

@@ -52,6 +52,7 @@ class SpanContext:
         self.span_id = uuid.uuid4().hex
         self.parent_span_id = parent_span_id
         self.started_at = utc_now()
+        self._started_monotonic = time.monotonic()
         self.ended_at: datetime | None = None
         self.status = "unset"
         self.attributes: dict[str, Any] = dict(attributes or {})
@@ -93,16 +94,19 @@ class SpanContext:
     def set_input(self, value: Mapping[str, Any]) -> None:
         """Set structured input captured for this span."""
 
+        self._ensure_unfinished()
         self.input = dict(value)
 
     def set_output(self, value: Mapping[str, Any]) -> None:
         """Set structured output captured for this span."""
 
+        self._ensure_unfinished()
         self.output = dict(value)
 
     def set_attributes(self, attributes: Mapping[str, Any]) -> None:
         """Merge structured span attributes."""
 
+        self._ensure_unfinished()
         self.attributes.update(dict(attributes))
 
     def set_token_usage(
@@ -114,6 +118,7 @@ class SpanContext:
     ) -> None:
         """Set model token usage metadata."""
 
+        self._ensure_unfinished()
         cost = Decimal(str(estimated_cost)) if estimated_cost is not None else None
         self.token_usage = TokenUsage(
             input_tokens=input_tokens,
@@ -124,17 +129,26 @@ class SpanContext:
     def set_model(self, *, provider_name: str = "", model_name: str = "") -> None:
         """Set model/provider metadata."""
 
+        self._ensure_unfinished()
         self.model = ModelAttributes(provider_name=provider_name, model_name=model_name)
 
     def set_tool(self, *, tool_name: str = "", tool_call_id: str = "") -> None:
         """Set tool-call metadata."""
 
+        self._ensure_unfinished()
         self.tool = ToolAttributes(tool_name=tool_name, tool_call_id=tool_call_id)
 
     def add_event(self, name: str, attributes: Mapping[str, Any] | None = None) -> None:
         """Append a point-in-time event to this span."""
 
+        self._ensure_unfinished()
         self.events.append(EventEnvelope(name=name, occurred_at=utc_now(), attributes=dict(attributes or {})))
+
+    def _ensure_unfinished(self) -> None:
+        """Reject mutations after this span has been finalized."""
+
+        if self._finished:
+            raise RuntimeError("span has already finished")
 
     def finish(self, *, exc: BaseException | None = None, traceback_obj: TracebackType | None = None) -> None:
         """Finalize the span and attach it to its trace exactly once."""
@@ -179,4 +193,4 @@ class SpanContext:
     def elapsed_seconds(self) -> float | int:
         """Return elapsed wall-clock seconds for callers that need live timing."""
 
-        return time.monotonic()
+        return time.monotonic() - self._started_monotonic

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Mapping
 from typing import Any
 
@@ -72,17 +73,17 @@ class AgentProofClient:
 
         self._exporter.flush()
 
-    async def aflush(self) -> None:
+    async def async_flush(self) -> None:
         """Async-compatible flush wrapper."""
 
-        self.flush()
+        await asyncio.to_thread(self.flush)
 
     def shutdown(self) -> None:
         """Flush queued telemetry and close resources."""
 
         self._exporter.shutdown()
 
-    async def ashutdown(self) -> None:
+    async def async_shutdown(self) -> None:
         """Async-compatible shutdown wrapper."""
 
-        self.shutdown()
+        await asyncio.to_thread(self.shutdown)
