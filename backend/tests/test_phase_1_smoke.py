@@ -15,3 +15,4 @@ def test_backend_settings_include_expected_core_apps() -> None:
     assert "agentproof_backend.apps.organizations.apps.OrganizationsConfig" in base.INSTALLED_APPS
     assert "agentproof_backend.apps.projects.apps.ProjectsConfig" in base.INSTALLED_APPS
     assert "agentproof_backend.apps.telemetry.apps.TelemetryConfig" in base.INSTALLED_APPS
+    assert "agentproof_backend.apps.outbox.apps.OutboxConfig" in base.INSTALLED_APPS

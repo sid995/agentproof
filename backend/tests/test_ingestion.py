@@ -21,6 +21,9 @@ from agentproof_backend.apps.audit.context import AuditContext
 from agentproof_backend.apps.ingestion.models import ProcessingStatus, TraceProcessingEvent
 from agentproof_backend.apps.ingestion.redaction import redact_canonical_trace
 from agentproof_backend.apps.ingestion.tasks import recover_stale_events
+from agentproof_backend.apps.outbox.models import OutboxEvent, OutboxEventStatus
+from agentproof_backend.apps.outbox.publishers import TRACE_ACCEPTED
+from agentproof_backend.apps.outbox.services import publish_pending_outbox_events
 from agentproof_backend.apps.projects.models import CaptureMode, Environment, Project
 from agentproof_backend.apps.projects.services import create_project
 from agentproof_backend.apps.telemetry.domain import CanonicalSpan, CanonicalTrace
@@ -215,7 +218,33 @@ def test_processing_event_created_with_trace() -> None:
 
     trace = Trace.objects.get(environment=env, external_trace_id="trace-1")
     event = TraceProcessingEvent.objects.get(trace=trace)
-    assert event.status in {ProcessingStatus.PENDING, ProcessingStatus.PROCESSED}
+    outbox_event = OutboxEvent.objects.get(aggregate_id=str(trace.id), event_type=TRACE_ACCEPTED)
+    assert event.status == ProcessingStatus.PENDING
+    assert outbox_event.status == OutboxEventStatus.PENDING
+    assert outbox_event.organization_id == env.organization_id
+    assert outbox_event.payload == {
+        "trace_id": str(trace.id),
+        "processing_event_id": str(event.id),
+    }
+
+
+def test_outbox_publish_processes_accepted_trace_event() -> None:
+    actor = make_user()
+    _, env = make_project(actor=actor)
+    _, plaintext = make_api_key(actor=actor, environment=env)
+
+    client = bearer_client(plaintext)
+    client.post(INGEST_URL, data=native_batch(), format="json")
+
+    result = publish_pending_outbox_events(batch_size=10)
+
+    trace = Trace.objects.get(environment=env, external_trace_id="trace-1")
+    event = TraceProcessingEvent.objects.get(trace=trace)
+    outbox_event = OutboxEvent.objects.get(aggregate_id=str(trace.id), event_type=TRACE_ACCEPTED)
+    assert result.selected == 1
+    assert result.published == 1
+    assert event.status == ProcessingStatus.PROCESSED
+    assert outbox_event.status == OutboxEventStatus.PUBLISHED
 
 
 # ---------------------------------------------------------------------------

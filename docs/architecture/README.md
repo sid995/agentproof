@@ -1458,6 +1458,17 @@ Example:
 
 This prevents a committed database record from existing without its required background job.
 
+The outbox stores tenant-scoped `OutboxEvent` rows. Publishers claim ready rows
+with row-level locks where the database supports them, mark them `publishing`,
+dispatch the registered Celery task, then mark them `published`. Failures return
+events to `pending` with bounded exponential backoff until repeated failures
+move them to `failed`.
+
+The first event type is `trace.accepted`. Trace ingestion commits the canonical
+trace, the Phase 7 `TraceProcessingEvent`, and the generic outbox event in the
+same transaction. The trace-processing consumer is idempotent so duplicate
+dispatch after a publisher crash remains safe.
+
 ---
 
 # 16. Data model
@@ -1608,8 +1619,7 @@ Current trace ingestion supports:
 * Effective environment capture mode with metadata-only, redacted, and full
   storage behavior.
 * `TraceProcessingEvent` records for accepted traces. This is a Phase 7
-  processing marker, not the generic transactional outbox introduced in Phase
-  8.
+  processing marker consumed through the Phase 8 generic transactional outbox.
 
 Trace-tree validation requires:
 
@@ -1984,11 +1994,16 @@ Fields:
 Fields:
 
 * id
+* organization_id
 * event_type
 * aggregate_type
 * aggregate_id
 * payload
+* status
 * created_at
+* updated_at
+* next_attempt_at
+* locked_at
 * published_at
 * attempt_count
 * last_error

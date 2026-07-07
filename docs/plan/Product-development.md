@@ -855,6 +855,47 @@ Consumers must remain idempotent because at-least-once delivery permits duplicat
 
 Stopping the publisher midway does not lose required work.
 
+## Implemented surface
+
+Status: Complete.
+
+Implemented:
+
+* Generic `OutboxEvent` model with tenant scope, event type, aggregate
+  identity, JSON payload, pending/publishing/published/failed states, publish
+  attempts, retry timing, lock timing, publish timing, and last-error capture.
+* Service APIs for transactional enqueue, locked batch publishing, stale
+  publishing-row recovery, bounded exponential retry, and terminal failure
+  after repeated publish errors.
+* Celery tasks:
+  * `outbox.publish_pending_events`
+  * `outbox.recover_stale_events`
+* Publisher registry with `trace.accepted` as the first event type. Trace
+  ingestion now creates the trace, Phase 7 `TraceProcessingEvent`, and generic
+  outbox event in one database transaction.
+* At-least-once delivery semantics. Consumers remain idempotent; duplicate
+  dispatch of `ingestion.process_trace_events` remains safe.
+* Django admin visibility and requeue action for pending or failed outbox
+  events.
+* Structured logging counters for selected, published, failed, retried, and
+  stale-recovered events.
+
+Remaining boundary:
+
+* Invitation email delivery still uses `transaction.on_commit` because moving
+  it to the generic JSON outbox would require storing invitation plaintext
+  tokens. That should wait for an encrypted/sensitive-payload outbox contract.
+* API key last-used updates remain direct Celery dispatch because they are
+  usage metadata, not required domain work for this phase.
+* Poison-message/dead-letter operator workflows beyond terminal `failed` state
+  remain future operational hardening.
+
+Validated gates:
+
+* `UV_CACHE_DIR=.uv-cache uv run pytest backend/tests/test_outbox.py backend/tests/test_ingestion.py -q`
+* `UV_CACHE_DIR=.uv-cache make migrations-check`
+* `UV_CACHE_DIR=.uv-cache make check`
+
 ---
 
 # Phase 9: Build the Python SDK
