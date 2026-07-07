@@ -1621,6 +1621,19 @@ Current trace ingestion supports:
 * `TraceProcessingEvent` records for accepted traces. This is a Phase 7
   processing marker consumed through the Phase 8 generic transactional outbox.
 
+Current trace explorer behavior supports:
+
+* Logged-in Django web pages under `/traces/`.
+* Active-organization tenant scoping for trace list, trace detail, and trace
+  annotation creation.
+* Trace list filtering by project, environment, status, search text, and tag.
+* Cursor pagination ordered by newest trace first.
+* Trace detail diagnostics for summary metadata, span waterfall/tree rows,
+  inputs and outputs, model calls, tool calls, errors, raw attributes, span
+  events, token breakdowns, cost breakdowns, and annotations.
+* Dependency-free server-rendered templates with no public JSON trace API in
+  Phase 10.
+
 Trace-tree validation requires:
 
 * Unique span identifiers inside a trace.

@@ -2,11 +2,12 @@
 
 from django.db import IntegrityError, transaction
 
+from agentproof_backend.apps.accounts.models import User
 from agentproof_backend.apps.organizations.models import Organization
 from agentproof_backend.apps.projects.models import Environment, Project
 from agentproof_backend.apps.telemetry.domain import CanonicalSpan, CanonicalTrace
 from agentproof_backend.apps.telemetry.exceptions import TelemetryPersistenceError
-from agentproof_backend.apps.telemetry.models import Span, SpanEvent, Trace
+from agentproof_backend.apps.telemetry.models import Span, SpanEvent, Trace, TraceAnnotation
 from agentproof_backend.apps.telemetry.validation import validate_trace_tree
 
 
@@ -107,3 +108,27 @@ def persist_canonical_trace(
     SpanEvent.objects.bulk_create(span_events)
 
     return trace
+
+
+@transaction.atomic
+def create_trace_annotation(
+    *,
+    actor: User,
+    organization: Organization,
+    trace: Trace,
+    annotation_type: str,
+    comment: str = "",
+) -> TraceAnnotation:
+    """Create a tenant-scoped annotation on one trace."""
+
+    if trace.organization_id != organization.id:
+        raise TelemetryPersistenceError("Trace does not belong to the organization")
+
+    return TraceAnnotation.objects.create(
+        organization=organization,
+        trace=trace,
+        author=actor,
+        annotation_type=annotation_type,
+        value={},
+        comment=comment,
+    )

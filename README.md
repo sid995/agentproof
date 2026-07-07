@@ -204,6 +204,24 @@ client.shutdown()
 
 Validation status: Phase 9 SDK tests, `make build-sdk`, and `make check` pass.
 
+## Trace explorer
+
+Phase 10 adds a logged-in Django web explorer under `/traces/` for stored
+telemetry.
+
+Trace explorer behavior:
+
+- The trace list is scoped to the active organization and supports project,
+  environment, status, search, tag, and cursor filters.
+- The trace detail page shows summary metadata, span waterfall/tree rows,
+  inputs and outputs, model and tool spans, errors, raw attributes, span
+  events, token and cost breakdowns, and annotations.
+- Users can add trace annotations from the detail page.
+- This phase intentionally does not add public JSON trace APIs.
+
+Validation status: Phase 10 trace explorer tests and
+`UV_CACHE_DIR=.uv-cache make check` pass.
+
 ## Phase completion docs
 
 Before marking a phase complete, review and update the relevant documentation:

@@ -1083,14 +1083,15 @@ Turn stored telemetry into a useful debugging interface.
 
 ## Recommended UI approach
 
-Use:
+Implemented with:
 
 * Django templates
-* HTMX
-* Alpine.js where small client state is required
-* Tailwind CSS or a restrained component system
+* Dependency-free server-rendered HTML
+* A small shared template/base style
 
-This keeps the project centred on Python while still producing a credible product interface.
+HTMX, Alpine.js, Tailwind CSS, and a frontend build pipeline remain out of
+scope for this phase. This keeps the project centred on Python while still
+producing a credible product interface.
 
 ## Pages
 
@@ -1148,6 +1149,32 @@ Use server-sent events for evaluation progress later. Do not add WebSockets mere
 ## Exit criteria
 
 A user can find and diagnose a failed agent run without accessing the database or raw logs.
+
+## Implementation status
+
+Phase 10 is implemented as a logged-in Django web explorer under `/traces/`.
+The trace list is scoped to the active organization, supports project,
+environment, status, search, tag, and cursor filters, and displays the core
+debugging columns from stored telemetry. The trace detail page shows summary
+metadata, span waterfall/tree rows, inputs and outputs, model and tool spans,
+errors, raw attributes, token and cost breakdowns, span events, and a trace
+annotation panel.
+
+Read behavior is centralized in telemetry selectors:
+
+* `list_traces`
+* `get_trace_summary`
+* `get_trace_tree`
+* `get_trace_cost_breakdown`
+* `get_trace_token_breakdown`
+
+This phase intentionally does not add public JSON trace APIs or dataset-case
+creation from traces.
+
+Validation evidence:
+
+* `UV_CACHE_DIR=.uv-cache uv run pytest backend/tests/test_trace_explorer.py -q`
+* `UV_CACHE_DIR=.uv-cache make check`
 
 ---
 
