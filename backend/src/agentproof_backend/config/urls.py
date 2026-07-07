@@ -67,6 +67,10 @@ urlpatterns = [
         "api/v1/",
         include("agentproof_backend.apps.api_keys.urls"),
     ),
+    path(
+        "api/v1/",
+        include("agentproof_backend.apps.ingestion.urls"),
+    ),
     # Web URL
     path(
         "projects/",

@@ -22,3 +22,4 @@ Accepted ADRs:
 - [ADR-004: Projects and deployment environments](ADR-004-projects-and-environments.md)
 - [ADR-005: Environment-scoped API keys](ADR-005-environment-scoped-api-keys.md)
 - [ADR-006: Canonical telemetry domain and OpenTelemetry normalization](ADR-006-canonical-telemetry-domain.md)
+- [ADR-007: Trace ingestion pipeline](ADR-007-trace-ingestion-pipeline.md)

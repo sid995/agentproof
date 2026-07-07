@@ -784,6 +784,39 @@ miserable enough.
 
 A valid API key can submit a batch, receive an acknowledgement, and view persisted records through Django admin.
 
+## Implemented surface
+
+Status: Complete.
+
+Implemented:
+
+* `POST /api/v1/ingest/traces` authenticated with environment-scoped bearer API
+  keys requiring `traces:write`.
+* Batch envelope validation for `agentproof` / `agentproof.v1` and
+  `opentelemetry` / `otel.v1` source-schema pairs.
+* Per-record responses for accepted, duplicate, invalid, and rejected records.
+* Idempotency on environment, external trace ID, and schema version, including
+  duplicate detection inside one batch.
+* Capture policy using the environment effective capture mode:
+  metadata-only, redacted, and full with mandatory secret-pattern filtering.
+* Phase 7 `TraceProcessingEvent` marker and Celery task for accepted traces.
+  This is intentionally narrow and does not replace the full Phase 8
+  transactional outbox.
+* OpenAPI schema refreshed for the ingestion endpoint.
+
+Remaining boundary:
+
+* `/api/v1/ingest/spans` and `/api/v1/ingest/otel` aliases remain future work.
+* Generic transactional outbox publishing remains Phase 8.
+* Payload-hash conflict detection and large raw-payload object storage remain
+  future hardening work.
+
+Validated gates:
+
+* `UV_CACHE_DIR=.uv-cache uv run pytest backend/tests/test_api_keys.py backend/tests/test_telemetry.py backend/tests/test_ingestion.py -q`
+* `UV_CACHE_DIR=.uv-cache make schema`
+* `UV_CACHE_DIR=.uv-cache make check`
+
 ---
 
 # Phase 8: Implement the transactional outbox

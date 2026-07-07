@@ -1582,12 +1582,12 @@ Fields:
 
 ## 16.4 Telemetry
 
-Telemetry is normalized into canonical traces before any provider-specific
-payload is accepted by the ingestion pipeline. The `telemetry` app owns durable
-trace storage, frozen canonical domain objects, native AgentProof envelopes,
-OpenTelemetry-style normalization, trace-tree validation, and service-level
-persistence. HTTP ingestion, redaction, idempotency, and batch processing are
-handled by the later ingestion pipeline.
+Telemetry is normalized into canonical traces before durable storage. The
+`telemetry` app owns trace storage, frozen canonical domain objects, native
+AgentProof envelopes, OpenTelemetry-style normalization, trace-tree validation,
+and service-level persistence. The ingestion app owns authenticated HTTP batch
+acceptance, capture policy, redaction, idempotency, per-record result
+aggregation, and Phase 7 processing markers.
 
 Current telemetry normalization supports:
 
@@ -1597,6 +1597,19 @@ Current telemetry normalization supports:
 * Standard OTLP `KeyValue` attribute arrays and flattened attribute maps.
 * Root-span-based trace naming for OpenTelemetry exports.
 * Rejection of malformed, negative, or non-finite estimated cost values.
+
+Current trace ingestion supports:
+
+* `POST /api/v1/ingest/traces`.
+* Environment API-key bearer authentication with `traces:write`.
+* `agentproof` / `agentproof.v1` and `opentelemetry` / `otel.v1` batches.
+* Per-record accepted, duplicate, invalid, and rejected responses.
+* Idempotency on environment, external trace ID, and schema version.
+* Effective environment capture mode with metadata-only, redacted, and full
+  storage behavior.
+* `TraceProcessingEvent` records for accepted traces. This is a Phase 7
+  processing marker, not the generic transactional outbox introduced in Phase
+  8.
 
 Trace-tree validation requires:
 
@@ -2098,6 +2111,9 @@ Minimal server-rendered project pages are exposed under:
 ### Ingestion
 
 * POST /api/v1/ingest/traces
+
+Future ingestion aliases:
+
 * POST /api/v1/ingest/spans
 * POST /api/v1/ingest/otel
 
