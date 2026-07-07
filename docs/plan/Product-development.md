@@ -1038,6 +1038,41 @@ Strict mode:
 
 The sample agent sends traces using fewer than ten lines of setup code.
 
+## Status
+
+Status: Complete.
+
+Implemented surface:
+
+* `agentproof-sdk` now exposes `AgentProofClient`, `AgentProofConfig`,
+  decorators, context managers, structured exceptions, native `agentproof.v1`
+  schemas, sync and async HTTP transports, and batching exporters.
+* The SDK sends native batches to `POST /api/v1/ingest/traces` with bearer
+  environment API-key authentication. Backend tenant scope remains derived from
+  the API key.
+* Trace and span context managers use `contextvars` for sync and async parent
+  relationships. Finalization captures exceptions and preserves user
+  application execution in safe failure modes.
+* Export uses an in-memory queue, background worker, bounded batching, retry,
+  flush, shutdown, and queue backpressure behavior.
+* The sample agent in `examples/sample_agent.py` sends a trace with fewer than
+  ten setup lines.
+
+Remaining boundary:
+
+* TestPyPI/PyPI publication remains an operational release step requiring
+  package-index credentials and an explicit release instruction.
+* Full OpenTelemetry exporter integration remains future compatibility work;
+  Phase 9 uses native AgentProof export as the happy path.
+
+Validated gates:
+
+* `UV_CACHE_DIR=.uv-cache uv run pytest packages/python-sdk/tests -q`
+* `UV_CACHE_DIR=.uv-cache uv run ruff check packages/python-sdk/src packages/python-sdk/tests`
+* `UV_CACHE_DIR=.uv-cache uv run mypy packages/python-sdk/src`
+* `UV_CACHE_DIR=.uv-cache make build-sdk`
+* `UV_CACHE_DIR=.uv-cache make check`
+
 ---
 
 # Phase 10: Build the trace explorer
