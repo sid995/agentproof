@@ -77,4 +77,9 @@ urlpatterns = [
         include("agentproof_backend.apps.projects.web_urls"),
         name="project-web",
     ),
+    path(
+        "traces/",
+        include("agentproof_backend.apps.telemetry.web_urls"),
+        name="trace-web",
+    ),
 ]

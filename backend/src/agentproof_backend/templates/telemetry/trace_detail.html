@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+
+{% block title %}{{ trace.name }}{% endblock %}
+
+{% block content %}
+  <a href="{% url 'trace-web:trace-list' %}">Traces</a>
+  <h1>{{ trace.name }}</h1>
+
+  <section class="panel grid">
+    <div>
+      <h2>Summary</h2>
+      <p><strong>Status:</strong> <span class="status-{{ trace.status }}">{{ trace.get_status_display }}</span></p>
+      <p><strong>Trace ID:</strong> {{ trace.external_trace_id }}</p>
+      <p><strong>Started:</strong> {{ trace.started_at }}</p>
+      <p><strong>Duration:</strong> {% if trace.duration_ms is not None %}{{ trace.duration_ms }} ms{% else %}Unknown{% endif %}</p>
+      <p><strong>Environment:</strong> {{ trace.environment.name }}</p>
+    </div>
+    <div>
+      <h2>Usage</h2>
+      <p><strong>Input tokens:</strong> {{ trace.total_input_tokens|default:"Unknown" }}</p>
+      <p><strong>Output tokens:</strong> {{ trace.total_output_tokens|default:"Unknown" }}</p>
+      <p><strong>Estimated cost:</strong> {% if trace.estimated_cost is not None %}${{ trace.estimated_cost }}{% else %}Unknown{% endif %}</p>
+      <p><strong>User:</strong> {{ trace.user_identifier|default:"Unknown" }}</p>
+      <p><strong>Session:</strong> {{ trace.session_identifier|default:"Unknown" }}</p>
+    </div>
+    <div>
+      <h2>Error</h2>
+      {% if trace.error_type or trace.error_message %}
+        <p><strong>{{ trace.error_type }}</strong></p>
+        <p>{{ trace.error_message }}</p>
+      {% else %}
+        <p class="muted">No trace-level error.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="panel table-wrap">
+    <h2>Span Waterfall</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Span</th>
+          <th>Type</th>
+          <th>Status</th>
+          <th>Timing</th>
+          <th>Waterfall</th>
+          <th>Events</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in tree.rows %}
+          <tr>
+            <td>
+              <span class="tree-name" style="padding-left: {{ row.depth }}.5rem">{{ row.span.name }}</span>
+              <div class="muted">{{ row.span.external_span_id }}</div>
+            </td>
+            <td>{{ row.span.get_span_type_display }}</td>
+            <td class="status-{{ row.span.status }}">{{ row.span.get_status_display }}</td>
+            <td>{% if row.span.duration_ms is not None %}{{ row.span.duration_ms }} ms{% else %}Unknown{% endif %}</td>
+            <td>
+              <div class="waterfall-track">
+                <div class="waterfall-bar" style="left: {{ row.offset_percent }}%; width: {{ row.width_percent }}%"></div>
+              </div>
+            </td>
+            <td>
+              {% for event in row.events %}
+                <span class="badge">{{ event.name }}</span>
+              {% empty %}
+                <span class="muted">None</span>
+              {% endfor %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="6">This trace has no spans.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="grid">
+    <div class="panel">
+      <h2>Model Calls</h2>
+      {% for span in model_spans %}
+        <h3>{{ span.name }}</h3>
+        <p>{{ span.provider_name }} {{ span.model_name }}</p>
+        <p>{{ span.input_tokens|default:0 }} input / {{ span.output_tokens|default:0 }} output tokens</p>
+      {% empty %}
+        <p class="muted">No model spans.</p>
+      {% endfor %}
+    </div>
+    <div class="panel">
+      <h2>Tool Calls</h2>
+      {% for span in tool_spans %}
+        <h3>{{ span.name }}</h3>
+        <pre>{{ span.input }}</pre>
+        <pre>{{ span.output }}</pre>
+      {% empty %}
+        <p class="muted">No tool spans.</p>
+      {% endfor %}
+    </div>
+    <div class="panel">
+      <h2>Span Errors</h2>
+      {% for span in error_spans %}
+        <h3>{{ span.name }}</h3>
+        <p><strong>{{ span.error_type }}</strong></p>
+        <p>{{ span.error_message }}</p>
+      {% empty %}
+        <p class="muted">No span errors.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="grid">
+    <div class="panel">
+      <h2>Token Breakdown</h2>
+      <table>
+        <thead><tr><th>Type</th><th>Input</th><th>Output</th></tr></thead>
+        <tbody>
+          {% for row in token_breakdown %}
+            <tr><td>{{ row.span_type }}</td><td>{{ row.input_tokens }}</td><td>{{ row.output_tokens }}</td></tr>
+          {% empty %}
+            <tr><td colspan="3">No token usage.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="panel">
+      <h2>Cost Breakdown</h2>
+      <table>
+        <thead><tr><th>Type</th><th>Cost</th></tr></thead>
+        <tbody>
+          {% for row in cost_breakdown %}
+            <tr><td>{{ row.span_type }}</td><td>${{ row.estimated_cost }}</td></tr>
+          {% empty %}
+            <tr><td colspan="2">No cost usage.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="grid">
+    <div class="panel">
+      <h2>Input</h2>
+      <pre>{{ trace.input }}</pre>
+    </div>
+    <div class="panel">
+      <h2>Output</h2>
+      <pre>{{ trace.output }}</pre>
+    </div>
+    <div class="panel">
+      <h2>Raw Attributes</h2>
+      <pre>{{ trace.attributes }}</pre>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Annotations</h2>
+    <ul>
+      {% for annotation in annotations %}
+        <li>
+          <strong>{{ annotation.annotation_type }}</strong>
+          <span class="muted">{{ annotation.created_at }}{% if annotation.author %} by {{ annotation.author.email }}{% endif %}</span>
+          <p>{{ annotation.comment }}</p>
+        </li>
+      {% empty %}
+        <li>No annotations yet.</li>
+      {% endfor %}
+    </ul>
+
+    <h3>Add annotation</h3>
+    <form method="post" action="{% url 'trace-web:trace-annotation-create' trace.id %}">
+      {% csrf_token %}
+      {{ annotation_form.as_p }}
+      <button type="submit">Add annotation</button>
+    </form>
+  </section>
+{% endblock %}

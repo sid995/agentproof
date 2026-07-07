@@ -23,3 +23,9 @@ class UnsupportedTelemetryPayload(TelemetryError):
     """Raised when no normalizer supports a telemetry payload."""
 
     code = "unsupported_telemetry_payload"
+
+
+class TraceNotFound(TelemetryError):
+    """Raised when a tenant-scoped trace does not exist."""
+
+    code = "trace_not_found"

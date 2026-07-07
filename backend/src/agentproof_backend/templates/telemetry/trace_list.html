@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Traces{% endblock %}
+
+{% block content %}
+  <h1>Traces</h1>
+
+  <section class="panel">
+    <form class="filters" method="get">
+      <label>
+        Project
+        <select name="project">
+          <option value="">All projects</option>
+          {% for project in projects %}
+            <option value="{{ project.id }}" {% if filters.project_id|stringformat:"s" == project.id|stringformat:"s" %}selected{% endif %}>{{ project.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        Environment
+        <select name="environment">
+          <option value="">All environments</option>
+          {% for environment in environments %}
+            <option value="{{ environment.id }}" {% if filters.environment_id|stringformat:"s" == environment.id|stringformat:"s" %}selected{% endif %}>{{ environment.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        Status
+        <select name="status">
+          <option value="">All statuses</option>
+          {% for value,label in statuses %}
+            <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        Search
+        <input type="search" name="q" value="{{ filters.search }}" placeholder="Name, trace ID, user, session">
+      </label>
+      <label>
+        Tag
+        <input type="search" name="tag" value="{{ filters.tag }}" placeholder="Tag">
+      </label>
+      <button type="submit">Filter</button>
+    </form>
+  </section>
+
+  <section class="panel table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Name</th>
+          <th>Status</th>
+          <th>Duration</th>
+          <th>Model</th>
+          <th>Tokens</th>
+          <th>Cost</th>
+          <th>Environment</th>
+          <th>Tags</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in page.traces %}
+          <tr>
+            <td>{{ item.trace.started_at }}</td>
+            <td>
+              <a href="{% url 'trace-web:trace-detail' item.trace.id %}">{{ item.trace.name }}</a>
+              <div class="muted">{{ item.trace.external_trace_id }}</div>
+            </td>
+            <td class="status-{{ item.trace.status }}">{{ item.trace.get_status_display }}</td>
+            <td>{% if item.trace.duration_ms is not None %}{{ item.trace.duration_ms }} ms{% else %}<span class="muted">Unknown</span>{% endif %}</td>
+            <td>
+              {% for model_name in item.model_names %}
+                <span class="badge">{{ model_name }}</span>
+              {% empty %}
+                <span class="muted">None</span>
+              {% endfor %}
+            </td>
+            <td>
+              {% if item.trace.total_input_tokens is not None or item.trace.total_output_tokens is not None %}
+                {{ item.trace.total_input_tokens|default:0 }} in / {{ item.trace.total_output_tokens|default:0 }} out
+              {% else %}
+                <span class="muted">Unknown</span>
+              {% endif %}
+            </td>
+            <td>{% if item.trace.estimated_cost is not None %}${{ item.trace.estimated_cost }}{% else %}<span class="muted">Unknown</span>{% endif %}</td>
+            <td>{{ item.trace.environment.name }}</td>
+            <td>
+              {% for tag in item.trace.tags %}
+                <span class="badge">{{ tag }}</span>
+              {% empty %}
+                <span class="muted">None</span>
+              {% endfor %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="9">No traces match these filters.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <nav class="pagination" aria-label="Trace pagination">
+    {% if previous_url %}<a class="button" href="{{ previous_url }}">Previous</a>{% endif %}
+    {% if next_url %}<a class="button" href="{{ next_url }}">Next</a>{% endif %}
+  </nav>
+{% endblock %}
