@@ -150,3 +150,38 @@ Phase 6 adds:
 
 Validation status: Phase 6 passes `make check`. Public ingestion endpoints are
 part of Phase 7.
+
+## Trace ingestion
+
+Phase 7 exposes authenticated trace-batch ingestion at
+`POST /api/v1/ingest/traces`.
+
+Ingestion behavior:
+
+- Requests authenticate with an environment API key carrying `traces:write`.
+- Supported batch source/schema pairs are `agentproof` / `agentproof.v1` and
+  `opentelemetry` / `otel.v1`.
+- Responses return per-record accepted, duplicate, invalid, and rejected
+  results instead of rejecting an entire batch for one malformed record.
+- Trace idempotency is based on environment, external trace ID, and schema
+  version.
+- Environment capture mode controls whether content is stored as metadata-only,
+  redacted, or full with mandatory secret-pattern filtering.
+- Accepted traces create a Phase 7 processing marker. The generic
+  transactional outbox remains Phase 8.
+
+Validation status: Phase 7 passes `make check`; refresh `make schema` after
+ingestion API changes.
+
+## Phase completion docs
+
+Before marking a phase complete, review and update the relevant documentation:
+
+- `docs/plan/Product-development.md` for status, implemented surface, remaining
+  boundary, and validation evidence.
+- `docs/architecture/README.md` when model, service, security, ingestion, API,
+  or operational behavior changed.
+- `docs/adr/` when the phase introduced, completed, or changed an architectural
+  decision.
+- `docs/api/openapi.yml` when public API behavior changed.
+- Root or package READMEs when setup, usage, or validation commands changed.

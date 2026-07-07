@@ -83,7 +83,7 @@ paths:
   /api/v1/environments/{environment_id}/api-keys/:
     get:
       operationId: environments_api_keys_list
-      description: List or create API keys for an environment
+      description: List or create API keys for an environment.
       parameters:
       - in: path
         name: environment_id
@@ -106,7 +106,7 @@ paths:
           description: ''
     post:
       operationId: environments_api_keys_create
-      description: List or create API keys for an environment
+      description: List or create API keys for an environment.
       parameters:
       - in: path
         name: environment_id
@@ -160,6 +160,46 @@ paths:
               schema:
                 $ref: '#/components/schemas/APIKeyAuthCheck'
           description: ''
+  /api/v1/ingest/traces:
+    post:
+      operationId: ingest_traces_create
+      description: Accepts a batch of trace records. Authenticates via Bearer API
+        key with traces:write scope. Returns 202 with per-record statuses even when
+        some records fail.
+      summary: Ingest a batch of traces
+      tags:
+      - Ingestion
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestTraceBatchRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/IngestTraceBatchRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/IngestTraceBatchRequest'
+        required: true
+      security:
+      - EnvironmentAPIKeyAuth: []
+      - {}
+      responses:
+        '202':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchResult'
+          description: ''
+        '400':
+          description: Malformed envelope, unsupported source/schema, or batch limit
+            exceeded
+        '401':
+          description: Missing or invalid API key
+        '403':
+          description: Insufficient scope or wrong environment
+        '413':
+          description: Request body too large
   /api/v1/invitations/accept/:
     post:
       operationId: invitations_accept_create
@@ -769,6 +809,68 @@ components:
         * `evaluations:run` - Run evaluations
         * `datasets:read` - Read datasets
         * `ci:read` - Read CI data
+    AcceptedRecord:
+      type: object
+      properties:
+        record_id:
+          type: string
+        external_trace_id:
+          type: string
+        trace_id:
+          type: string
+        status:
+          type: string
+      required:
+      - external_trace_id
+      - record_id
+      - status
+      - trace_id
+    BatchResult:
+      type: object
+      properties:
+        batch_id:
+          type: string
+        summary:
+          $ref: '#/components/schemas/BatchSummary'
+        accepted:
+          type: array
+          items:
+            $ref: '#/components/schemas/AcceptedRecord'
+        duplicates:
+          type: array
+          items:
+            $ref: '#/components/schemas/FailedRecord'
+        invalid:
+          type: array
+          items:
+            $ref: '#/components/schemas/FailedRecord'
+        rejected:
+          type: array
+          items:
+            $ref: '#/components/schemas/FailedRecord'
+      required:
+      - accepted
+      - batch_id
+      - duplicates
+      - invalid
+      - rejected
+      - summary
+    BatchSummary:
+      type: object
+      properties:
+        accepted:
+          type: integer
+        duplicates:
+          type: integer
+        invalid:
+          type: integer
+        rejected:
+          type: integer
+      required:
+      - accepted
+      - duplicates
+      - invalid
+      - rejected
     CaptureModeEnum:
       enum:
       - metadata_only
@@ -891,6 +993,49 @@ components:
         * `staging` - Staging
         * `production` - Production
         * `custom` - Custom
+    FailedRecord:
+      type: object
+      properties:
+        record_id:
+          type: string
+        status:
+          type: string
+        reason:
+          type: string
+      required:
+      - reason
+      - record_id
+      - status
+    IngestRecordRequest:
+      type: object
+      properties:
+        record_id:
+          type: string
+          default: ''
+        payload:
+          type: object
+          additionalProperties: {}
+      required:
+      - payload
+    IngestTraceBatchRequest:
+      type: object
+      properties:
+        source:
+          type: string
+          minLength: 1
+        schema_version:
+          type: string
+          minLength: 1
+        records:
+          type: array
+          items:
+            $ref: '#/components/schemas/IngestRecordRequest'
+          maxItems: 100
+          minItems: 1
+      required:
+      - records
+      - schema_version
+      - source
     Invitation:
       type: object
       description: Invitation response representation.

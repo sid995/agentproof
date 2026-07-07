@@ -63,3 +63,9 @@ site/
 tmp/
 temp/
 .cache/
+
+# Jetbrains Air IDE
+.coverage
+
+# Temp Plans
+phase-*-plan.md

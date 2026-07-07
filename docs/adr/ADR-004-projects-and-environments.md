@@ -4,7 +4,7 @@
 
 Accepted
 
-Implementation status: in progress on branch `phases/phase-4`.
+Implementation status: implemented and validated.
 
 ## Context
 
@@ -136,7 +136,7 @@ Negative:
 
 ## Current implementation notes
 
-The current Phase 4 work has started:
+The Phase 4 implementation includes:
 
 - Project and Environment models.
 - Project and environment services/selectors.
@@ -146,10 +146,5 @@ The current Phase 4 work has started:
 - OpenAPI schema updates.
 - Tests for tenant scoping, permissions, audit events, and web pages.
 
-The implementation is not complete until:
-
-- API and web views are aligned with the final service contract.
-- Migrations match the current models.
-- Environment organization/project consistency is enforced.
-- `make schema` passes without warnings.
-- `make check` passes.
+Environment organization/project consistency is enforced in model and service
+paths. The current validation gate is `make check`.
