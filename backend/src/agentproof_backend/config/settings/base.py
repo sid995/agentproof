@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     "agentproof_backend.apps.api_keys.apps.APIKeysConfig",
     "agentproof_backend.apps.telemetry.apps.TelemetryConfig",
     "agentproof_backend.apps.ingestion.apps.IngestionConfig",
+    "agentproof_backend.apps.outbox.apps.OutboxConfig",
 ]
 
 MIDDLEWARE = [

@@ -31,7 +31,10 @@ def process_trace_events(event_id: str) -> None:
 
 @shared_task(name="ingestion.recover_stale_events")
 def recover_stale_events(stale_minutes: int = 15) -> int:
-    """Requeue pending events that have not been processed within the stale window"""
+    """Legacy recovery hook kept for Phase 7 processing markers.
+
+    Generic dispatch recovery is handled by the Phase 8 outbox.
+    """
     from agentproof_backend.apps.ingestion.models import ProcessingStatus, TraceProcessingEvent
 
     cutoff = timezone.now() - timedelta(minutes=stale_minutes)

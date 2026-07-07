@@ -12,6 +12,8 @@ from agentproof_backend.apps.api_keys.services import VerifiedAPIKey
 from agentproof_backend.apps.ingestion.exceptions import BatchEnvelopeInvalid, BatchLimitExceeded
 from agentproof_backend.apps.ingestion.models import TraceProcessingEvent
 from agentproof_backend.apps.ingestion.redaction import redact_canonical_trace
+from agentproof_backend.apps.outbox.publishers import TRACE_ACCEPTED
+from agentproof_backend.apps.outbox.services import enqueue_outbox_event
 from agentproof_backend.apps.projects.models import Environment
 from agentproof_backend.apps.telemetry.exceptions import TelemetryError, UnsupportedTelemetryPayload
 from agentproof_backend.apps.telemetry.models import Trace
@@ -183,8 +185,6 @@ def _persist_with_processing_event(
     canonical_trace: Any,
 ) -> Trace:
     """Persist trace and create processing event in one transaction."""
-    from agentproof_backend.apps.ingestion.tasks import process_trace_events
-
     trace = persist_canonical_trace(
         organization=organization,
         project=project,
@@ -199,6 +199,15 @@ def _persist_with_processing_event(
         },
     )
 
-    transaction.on_commit(lambda: process_trace_events.delay(str(event.id)))
+    enqueue_outbox_event(
+        organization=organization,
+        event_type=TRACE_ACCEPTED,
+        aggregate_type="trace",
+        aggregate_id=trace.id,
+        payload={
+            "trace_id": str(trace.id),
+            "processing_event_id": str(event.id),
+        },
+    )
 
     return trace
