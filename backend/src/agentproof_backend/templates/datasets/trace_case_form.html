@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Add Trace To Dataset{% endblock %}
+
+{% block content %}
+  <a href="{% url 'trace-web:trace-detail' trace.id %}">{{ trace.name }}</a>
+  <h1>Add Trace To Dataset</h1>
+  {% if form_error %}<p class="status-error">{{ form_error }}</p>{% endif %}
+
+  <section class="panel">
+    <form method="post">
+      {% csrf_token %}
+      <p>
+        <label>Dataset
+          <select name="dataset_id" required>
+            {% for dataset in datasets %}
+              <option value="{{ dataset.id }}">{{ dataset.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        {{ form.dataset_id.errors }}
+      </p>
+      {{ form.logical_id.as_field_group }}
+      {{ form.expected_behavior.as_field_group }}
+      {{ form.tags.as_field_group }}
+      <h2>Copied Trace Input</h2>
+      <pre>{{ trace.input }}</pre>
+      <h2>Reference Output</h2>
+      <pre>{{ trace.output }}</pre>
+      <button type="submit">Create case</button>
+    </form>
+  </section>
+{% endblock %}

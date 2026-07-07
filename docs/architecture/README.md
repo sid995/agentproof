@@ -924,6 +924,17 @@ Publishing a dataset version must produce an immutable snapshot.
 
 Changes after publication must create a new draft.
 
+Phase 11 implementation:
+
+* A dataset has one open mutable draft at a time.
+* Publishing validates draft schemas and cases, snapshots draft metadata and
+  cases, assigns the next version number, and records a deterministic SHA-256
+  content hash over canonical JSON content.
+* Published dataset versions and version cases reject application-level update
+  and delete attempts. New evaluation-affecting changes require cloning a
+  published version into a new draft.
+* Duplicate published content hashes are rejected per dataset.
+
 ### FR-DATA-003: Define test case
 
 Priority: P0
@@ -938,6 +949,31 @@ Test-case fields:
 * Reference context
 * Metadata
 * Tags
+
+Phase 11 test-case behavior:
+
+* Draft cases are editable only while attached to an open draft.
+* Publishing requires each case to have input and at least one expectation:
+  expected behavior, expected output, expected tool calls, or forbidden tool
+  calls.
+* Draft input/output schemas are JSON Schema documents. Case input is validated
+  against the draft input schema, and non-empty expected output is validated
+  against the draft output schema.
+* Trace-to-case creation copies trace input into case input, trace output into
+  reference output, and source trace metadata into case metadata.
+
+### FR-DATA-004: Import and export dataset cases
+
+Priority: P0
+
+Phase 11 implementation:
+
+* JSONL import stores an uploaded file with Django `default_storage`, processes
+  it in a Celery task, validates each row independently, records row-level
+  errors on the import job, and creates valid draft cases.
+* Import files are temporary; a cleanup task deletes retained files after the
+  configured retention window.
+* Published versions export stable JSONL ordered by version-case position.
 
 ### FR-DATA-004: Import and export
 

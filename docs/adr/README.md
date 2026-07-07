@@ -24,3 +24,4 @@ Accepted ADRs:
 - [ADR-006: Canonical telemetry domain and OpenTelemetry normalization](ADR-006-canonical-telemetry-domain.md)
 - [ADR-007: Trace ingestion pipeline](ADR-007-trace-ingestion-pipeline.md)
 - [ADR-008: Transactional outbox](ADR-008-transactional-outbox.md)
+- [ADR-009: Versioned datasets and async JSONL imports](ADR-009-versioned-datasets.md)

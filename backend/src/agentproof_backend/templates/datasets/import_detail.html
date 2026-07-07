@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}Import Job{% endblock %}
+
+{% block content %}
+  <a href="{% url 'dataset-web:dataset-detail' dataset.id %}">{{ dataset.name }}</a>
+  <h1>Import Job</h1>
+
+  <section class="panel">
+    <p><strong>Status:</strong> {{ job.get_status_display }}</p>
+    <p><strong>Total rows:</strong> {{ job.total_rows }}</p>
+    <p><strong>Imported rows:</strong> {{ job.imported_rows }}</p>
+    <p><strong>Error rows:</strong> {{ job.error_rows }}</p>
+    {% if job.last_error %}<p class="status-error">{{ job.last_error }}</p>{% endif %}
+  </section>
+
+  <section class="panel">
+    <h2>Row Errors</h2>
+    <ul>
+      {% for error in job.row_errors %}
+        <li>Row {{ error.row }}: {{ error.error }}</li>
+      {% empty %}
+        <li>No row errors.</li>
+      {% endfor %}
+    </ul>
+  </section>
+{% endblock %}

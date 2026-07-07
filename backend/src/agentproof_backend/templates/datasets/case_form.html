@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Case{% endblock %}
+
+{% block content %}
+  <a href="{% url 'dataset-web:dataset-detail' dataset.id %}">{{ dataset.name }}</a>
+  <h1>Edit Case</h1>
+  {% if form_error %}<p class="status-error">{{ form_error }}</p>{% endif %}
+  <section class="panel">
+    <form method="post">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <button type="submit">Save case</button>
+    </form>
+  </section>
+{% endblock %}

@@ -222,6 +222,25 @@ Trace explorer behavior:
 Validation status: Phase 10 trace explorer tests and
 `UV_CACHE_DIR=.uv-cache make check` pass.
 
+## Versioned datasets
+
+Phase 11 adds logged-in dataset management under `/datasets/` for turning
+observed trace failures into repeatable regression cases.
+
+Dataset behavior:
+
+- Datasets belong to a project in the active organization.
+- Each dataset has at most one mutable draft.
+- Draft cases can be created manually, imported from JSONL, or created from a
+  trace detail page with trace input and reference output copied forward.
+- Publishing creates an immutable numbered dataset version with a deterministic
+  content hash.
+- Published versions can be exported as JSONL or cloned into a new draft.
+- This phase intentionally does not add public dataset APIs.
+
+Validation status: Phase 11 dataset tests and
+`UV_CACHE_DIR=.uv-cache make check` pass.
+
 ## Phase completion docs
 
 Before marking a phase complete, review and update the relevant documentation:

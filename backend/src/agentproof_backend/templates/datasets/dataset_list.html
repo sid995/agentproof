@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}Datasets{% endblock %}
+
+{% block content %}
+  <h1>Datasets</h1>
+
+  <section class="panel">
+    <form class="filters" method="get">
+      <label>Project
+        <select name="project">
+          <option value="">All projects</option>
+          {% for project in projects %}
+            <option value="{{ project.id }}" {% if filters.project_id|stringformat:"s" == project.id|stringformat:"s" %}selected{% endif %}>{{ project.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Search
+        <input type="search" name="q" value="{{ filters.search }}">
+      </label>
+      <label>Tag
+        <input type="search" name="tag" value="{{ filters.tag }}">
+      </label>
+      <button type="submit">Filter</button>
+    </form>
+  </section>
+
+  <section class="panel table-wrap">
+    <h2>Dataset List</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Project</th>
+          <th>Status</th>
+          <th>Versions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for dataset in datasets %}
+          <tr>
+            <td><a href="{% url 'dataset-web:dataset-detail' dataset.id %}">{{ dataset.name }}</a></td>
+            <td>{{ dataset.project.name }}</td>
+            <td>{{ dataset.get_status_display }}</td>
+            <td>{{ dataset.version_count }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4">No datasets yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  {% if can_manage %}
+    <section class="panel">
+      <h2>Create Dataset</h2>
+      {% if form_error %}<p class="status-error">{{ form_error }}</p>{% endif %}
+      <form method="post">
+        {% csrf_token %}
+        <p>
+          <label>Project
+            <select name="project_id" required>
+              {% for project in projects %}
+                <option value="{{ project.id }}">{{ project.name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          {{ form.project_id.errors }}
+        </p>
+        {{ form.name.as_field_group }}
+        {{ form.slug.as_field_group }}
+        {{ form.description.as_field_group }}
+        {{ form.tags.as_field_group }}
+        {{ form.input_schema.as_field_group }}
+        {{ form.output_schema.as_field_group }}
+        <button type="submit">Create dataset</button>
+      </form>
+    </section>
+  {% endif %}
+{% endblock %}

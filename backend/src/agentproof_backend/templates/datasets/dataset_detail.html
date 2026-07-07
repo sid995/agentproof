@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}{{ dataset.name }}{% endblock %}
+
+{% block content %}
+  <a href="{% url 'dataset-web:dataset-list' %}">Datasets</a>
+  <h1>{{ dataset.name }}</h1>
+  <p class="muted">{{ dataset.project.name }} / {{ dataset.slug }}</p>
+  <p>{{ dataset.description }}</p>
+  {% if form_error %}<p class="status-error">{{ form_error }}</p>{% endif %}
+
+  <section class="grid">
+    <div class="panel">
+      <h2>Draft</h2>
+      {% if draft %}
+        <p><strong>Status:</strong> {{ draft.get_status_display }}</p>
+        <p><strong>Tags:</strong>
+          {% for tag in draft.tags %}<span class="badge">{{ tag }}</span>{% empty %}<span class="muted">None</span>{% endfor %}
+        </p>
+        <p><strong>Cases:</strong> {{ draft.cases.count }}</p>
+        {% if can_manage %}
+          <form method="post" action="{% url 'dataset-web:dataset-publish' dataset.id %}">
+            {% csrf_token %}
+            <button type="submit">Publish version</button>
+          </form>
+        {% endif %}
+      {% else %}
+        <p class="muted">No open draft.</p>
+      {% endif %}
+    </div>
+
+    <div class="panel">
+      <h2>Published Versions</h2>
+      <ul>
+        {% for version in versions %}
+          <li>
+            <a href="{% url 'dataset-web:dataset-version-detail' dataset.id version.id %}">Version {{ version.version_number }}</a>
+            <span class="muted">{{ version.content_hash|slice:":12" }}</span>
+          </li>
+        {% empty %}
+          <li>No versions published.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </section>
+
+  {% if draft and can_manage %}
+    <section class="panel">
+      <h2>Draft Metadata</h2>
+      <form method="post" action="{% url 'dataset-web:dataset-draft-update' dataset.id %}">
+        {% csrf_token %}
+        {{ metadata_form.as_p }}
+        <button type="submit">Save metadata</button>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Add Case</h2>
+      <form method="post" action="{% url 'dataset-web:dataset-case-create' dataset.id %}">
+        {% csrf_token %}
+        {{ case_form.as_p }}
+        <button type="submit">Add case</button>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>JSONL Import</h2>
+      <form method="post" enctype="multipart/form-data" action="{% url 'dataset-web:dataset-import-create' dataset.id %}">
+        {% csrf_token %}
+        {{ import_form.as_p }}
+        <button type="submit">Import cases</button>
+      </form>
+      <ul>
+        {% for job in imports %}
+          <li><a href="{% url 'dataset-web:dataset-import-detail' dataset.id job.id %}">{{ job.created_at }} - {{ job.get_status_display }}</a></li>
+        {% empty %}
+          <li>No imports yet.</li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  <section class="panel table-wrap">
+    <h2>Draft Cases</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Logical ID</th>
+          <th>Tags</th>
+          <th>Expectation</th>
+          <th>Source</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if draft %}
+          {% for case in draft.cases.all %}
+            <tr>
+              <td>{{ case.logical_id }}</td>
+              <td>{% for tag in case.tags %}<span class="badge">{{ tag }}</span>{% empty %}<span class="muted">None</span>{% endfor %}</td>
+              <td>{{ case.expected_behavior|default:"Structured expectation" }}</td>
+              <td>{% if case.source_trace %}<a href="{% url 'trace-web:trace-detail' case.source_trace.id %}">Trace</a>{% else %}<span class="muted">Manual</span>{% endif %}</td>
+              <td>
+                {% if can_manage %}
+                  <a href="{% url 'dataset-web:dataset-case-edit' dataset.id case.id %}">Edit</a>
+                  <form method="post" action="{% url 'dataset-web:dataset-case-delete' dataset.id case.id %}" style="display:inline">
+                    {% csrf_token %}
+                    <button type="submit">Delete</button>
+                  </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="5">No draft cases.</td></tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="5">No open draft.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </section>
+{% endblock %}
