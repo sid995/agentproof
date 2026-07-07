@@ -173,6 +173,37 @@ Ingestion behavior:
 Validation status: Phase 7 passes `make check`; refresh `make schema` after
 ingestion API changes.
 
+## Python SDK
+
+Phase 9 provides the `agentproof-sdk` package under `packages/python-sdk`.
+
+SDK behavior:
+
+- `AgentProofClient` sends native `agentproof.v1` batches to
+  `POST /api/v1/ingest/traces`.
+- Requests authenticate with `Authorization: Bearer <environment-api-key>`.
+- Scope is derived by the backend from the API key, not from SDK-supplied
+  organization, project, or environment values.
+- Sync and async trace/span context managers preserve parent-child span
+  relationships with `contextvars`.
+- Decorators are available for agent, model, tool, and retrieval spans.
+- Telemetry failures default to logged safe-failure behavior; `strict` mode
+  propagates SDK/export errors for tests and development.
+
+Minimal example:
+
+```python
+from agentproof import AgentProofClient
+
+client = AgentProofClient(api_key="ap_live_...", endpoint="http://127.0.0.1:8000")
+with client.trace("support-agent") as trace:
+    with trace.span("search-documents", span_type="retrieval"):
+        run_work()
+client.shutdown()
+```
+
+Validation status: Phase 9 SDK tests, `make build-sdk`, and `make check` pass.
+
 ## Phase completion docs
 
 Before marking a phase complete, review and update the relevant documentation:

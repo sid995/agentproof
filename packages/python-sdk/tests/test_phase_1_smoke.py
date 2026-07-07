@@ -6,6 +6,9 @@ import agentproof
 def test_sdk_package_imports() -> None:
     """The SDK should expose its package version."""
     assert agentproof.__version__ == "0.1.0"
+    assert agentproof.AgentProofClient
+    assert agentproof.AgentProofConfig
+    assert agentproof.trace_agent
 
 
 def test_sdk_exports_version_string() -> None:

@@ -2208,6 +2208,10 @@ agentproof-sdk
 * Context propagation
 * OpenTelemetry compatibility
 
+The Phase 9 implementation uses native AgentProof export as the primary happy
+path. Full OpenTelemetry exporter integration remains future compatibility
+work.
+
 ## 18.3 Public concepts
 
 ### AgentProofClient
@@ -2219,6 +2223,13 @@ Responsibilities:
 * Export
 * Flush
 * Shutdown
+
+`AgentProofClient` resolves configuration from explicit constructor arguments,
+environment variables, and defaults. It sends batches to
+`POST /api/v1/ingest/traces` using `Authorization: Bearer <api-key>`. The SDK
+does not send trusted tenant identifiers; organization, project, and
+environment scope is derived by the backend from the verified environment API
+key.
 
 ### Trace context manager
 
@@ -2247,6 +2258,19 @@ with trace.span("search-documents", span_type="retrieval") as span:
 * Async context managers
 * Async flush
 * Async transport
+
+The implemented SDK package exports:
+
+* `AgentProofClient`
+* `AgentProofConfig`
+* `trace_agent`
+* `trace_model`
+* `trace_tool`
+* `trace_retrieval`
+
+Native `agentproof.v1` SDK schemas mirror the backend ingestion envelope:
+trace/span IDs, names, status, timestamps, attributes, input/output, error
+details, token usage, model/tool metadata, and span events.
 
 ## 18.4 Advanced Python concepts
 
@@ -2279,6 +2303,33 @@ Modes:
 * strict
 
 Strict mode is intended for development and tests.
+
+The default mode is `log`: telemetry failures are logged and user application
+execution continues. `silent` swallows telemetry failures. `strict` propagates
+configuration, queue, and transport errors for tests and development.
+
+## 18.6 SDK export behavior
+
+The SDK batches completed traces into the existing Phase 7 ingestion request
+shape:
+
+```json
+{
+  "source": "agentproof",
+  "schema_version": "agentproof.v1",
+  "records": [
+    {
+      "record_id": "trace-id",
+      "payload": {}
+    }
+  ]
+}
+```
+
+Export uses a bounded in-memory queue, a background worker for synchronous
+clients, retry for transient transport failures, `flush()` / `aflush()`, and
+`shutdown()` / `ashutdown()`. SDK batch size is capped to the backend record
+limit, and batching also respects the backend 500-span request boundary.
 
 ---
 
