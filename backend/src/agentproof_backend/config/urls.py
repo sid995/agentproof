@@ -82,4 +82,9 @@ urlpatterns = [
         include("agentproof_backend.apps.telemetry.web_urls"),
         name="trace-web",
     ),
+    path(
+        "datasets/",
+        include("agentproof_backend.apps.datasets.web_urls"),
+        name="dataset-web",
+    ),
 ]

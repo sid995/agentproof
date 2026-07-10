@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}{{ dataset.name }} v{{ version.version_number }}{% endblock %}
+
+{% block content %}
+  <a href="{% url 'dataset-web:dataset-detail' dataset.id %}">{{ dataset.name }}</a>
+  <h1>Version {{ version.version_number }}</h1>
+  <p><strong>Content hash:</strong> {{ version.content_hash }}</p>
+  <p><a class="button" href="{% url 'dataset-web:dataset-version-export' dataset.id version.id %}">Export JSONL</a></p>
+  {% if can_manage %}
+    <form method="post" action="{% url 'dataset-web:dataset-version-clone' dataset.id version.id %}">
+      {% csrf_token %}
+      <button type="submit">Clone to draft</button>
+    </form>
+  {% endif %}
+
+  <section class="panel table-wrap">
+    <h2>Cases</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Logical ID</th>
+          <th>Expectation</th>
+          <th>Tags</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for case in version.cases.all %}
+          <tr>
+            <td>{{ case.position }}</td>
+            <td>{{ case.logical_id }}</td>
+            <td>{{ case.expected_behavior|default:"Structured expectation" }}</td>
+            <td>{% for tag in case.tags %}<span class="badge">{{ tag }}</span>{% empty %}<span class="muted">None</span>{% endfor %}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4">No cases.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endblock %}

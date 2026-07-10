@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     "agentproof_backend.apps.audit.apps.AuditConfig",
     "agentproof_backend.apps.projects.apps.ProjectsConfig",
     "agentproof_backend.apps.api_keys.apps.APIKeysConfig",
+    "agentproof_backend.apps.datasets.apps.DatasetsConfig",
     "agentproof_backend.apps.telemetry.apps.TelemetryConfig",
     "agentproof_backend.apps.ingestion.apps.IngestionConfig",
     "agentproof_backend.apps.outbox.apps.OutboxConfig",

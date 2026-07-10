@@ -1231,6 +1231,45 @@ Once a dataset version is published:
 
 A production trace becomes a published test case through the UI.
 
+## Implementation status
+
+Phase 11 is implemented as a logged-in Django web surface under `/datasets/`.
+Datasets are scoped to the active organization and project, maintain at most
+one open mutable draft, and publish immutable numbered versions with
+deterministic SHA-256 content hashes. Draft cases can be created manually or
+from trace detail pages, edited while the draft is open, imported from JSONL,
+and exported from published versions as JSONL.
+
+Implemented surface:
+
+* `datasets` app models for dataset containers, drafts, draft cases, published
+  versions, immutable version cases, and JSONL import jobs.
+* Service-layer writes for dataset creation, draft metadata updates, draft-case
+  CRUD, trace-to-case creation, version publishing, version cloning, JSONL
+  import processing, import cleanup, and JSONL export.
+* JSON Schema validation for draft input/output schemas and case payloads.
+* Server-rendered pages for dataset list/create, dataset detail, case editing,
+  import status/errors, published version detail, clone, export, and trace
+  promotion into a dataset case.
+* Application-level immutability guards for published versions and published
+  version cases.
+* Database-level `PROTECT` relations prevent published versions or their cases
+  from being removed through parent dataset, organization, or version deletes.
+
+Remaining boundary:
+
+* No public DRF dataset API is added in this phase.
+* The existing `datasets:read` API-key scope remains future evaluator/API work.
+* Automated recurring cleanup scheduling is not added; the cleanup task exists
+  for worker/operations wiring.
+
+Validation evidence:
+
+* `UV_CACHE_DIR=.uv-cache uv run pytest backend/tests/test_datasets.py backend/tests/test_dataset_web.py -q`
+* `UV_CACHE_DIR=.uv-cache make lint`
+* `UV_CACHE_DIR=.uv-cache make type-check`
+* `UV_CACHE_DIR=.uv-cache make check`
+
 ---
 
 # Phase 12: Build the evaluator framework

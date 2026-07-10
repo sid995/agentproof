@@ -5,6 +5,7 @@
 {% block content %}
   <a href="{% url 'trace-web:trace-list' %}">Traces</a>
   <h1>{{ trace.name }}</h1>
+  <p><a class="button" href="{% url 'dataset-web:trace-case-create' trace.id %}">Add to dataset</a></p>
 
   <section class="panel grid">
     <div>
