@@ -1253,6 +1253,8 @@ Implemented surface:
   promotion into a dataset case.
 * Application-level immutability guards for published versions and published
   version cases.
+* Database-level `PROTECT` relations prevent published versions or their cases
+  from being removed through parent dataset, organization, or version deletes.
 
 Remaining boundary:
 

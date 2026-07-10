@@ -285,10 +285,10 @@ class DatasetVersion(TimeStampedUUIDModel):
 
     organization = models.ForeignKey(
         "organizations.Organization",
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="dataset_versions",
     )
-    dataset = models.ForeignKey(Dataset, on_delete=models.CASCADE, related_name="versions")
+    dataset = models.ForeignKey(Dataset, on_delete=models.PROTECT, related_name="versions")
     source_draft = models.OneToOneField(DatasetDraft, on_delete=models.PROTECT, related_name="published_version")
     version_number = models.PositiveIntegerField()
     content_hash = models.CharField(max_length=64)
@@ -351,10 +351,10 @@ class DatasetVersionCase(TimeStampedUUIDModel):
 
     organization = models.ForeignKey(
         "organizations.Organization",
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="dataset_version_cases",
     )
-    version = models.ForeignKey(DatasetVersion, on_delete=models.CASCADE, related_name="cases")
+    version = models.ForeignKey(DatasetVersion, on_delete=models.PROTECT, related_name="cases")
     source_draft_case = models.ForeignKey(
         DatasetDraftCase,
         on_delete=models.SET_NULL,

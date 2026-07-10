@@ -125,6 +125,10 @@ class DatasetImportJobAdmin(admin.ModelAdmin[DatasetImportJob]):
 
     list_display = ("draft", "status", "total_rows", "imported_rows", "error_rows", "created_at")
     list_filter = ("status", "created_at", "cleanup_after")
+
+    def has_add_permission(self, _request: HttpRequest) -> bool:
+        return False
+
     readonly_fields = (
         "id",
         "organization",

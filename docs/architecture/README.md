@@ -933,6 +933,9 @@ Phase 11 implementation:
 * Published dataset versions and version cases reject application-level update
   and delete attempts. New evaluation-affecting changes require cloning a
   published version into a new draft.
+* Published-version and published-version-case relations use database
+  `PROTECT` deletion behavior for their organization, dataset, and version
+  parents, so parent deletion cannot bypass snapshot immutability.
 * Duplicate published content hashes are rejected per dataset.
 
 ### FR-DATA-003: Define test case

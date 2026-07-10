@@ -21,7 +21,9 @@ Implement versioned datasets as a dedicated Django `datasets` app.
   constraint allows at most one open draft per dataset.
 * `DatasetDraftCase` stores editable cases and optional source trace links.
 * `DatasetVersion` and `DatasetVersionCase` are immutable published snapshots.
-  Application-level model and queryset guards reject updates and deletes.
+  Application-level model and queryset guards reject updates and deletes, and
+  `PROTECT` foreign keys prevent parent dataset, organization, or version
+  deletion from cascading into published content.
 * Publishing validates schemas and cases, snapshots draft content, assigns the
   next version number, and computes a deterministic SHA-256 content hash from
   canonical JSON.

@@ -7,7 +7,8 @@ from decimal import Decimal
 
 import pytest
 from django.core.files.base import ContentFile
-from django.db import connection
+from django.db import connection, models
+from django.db.models.deletion import ProtectedError
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
@@ -262,6 +263,28 @@ def test_publish_creates_immutable_version_and_rejects_duplicate_content() -> No
             dataset_id=dataset.id,
             audit_context=AUDIT_CONTEXT,
         )
+
+
+def test_published_versions_are_protected_from_parent_deletes() -> None:
+    owner = create_user(email="owner@example.com")
+    organization, _membership = create_test_organization(owner=owner)
+    project, _environment = create_project_with_environment(owner=owner, organization=organization)
+    dataset = create_dataset_with_draft(owner=owner, organization=organization, project=project)
+    create_case(owner=owner, organization=organization, dataset=dataset)
+    version = publish_dataset_version(
+        actor=owner,
+        organization=organization,
+        dataset_id=dataset.id,
+        audit_context=AUDIT_CONTEXT,
+    )
+
+    assert DatasetVersion._meta.get_field("organization").remote_field.on_delete is models.PROTECT
+    assert DatasetVersion._meta.get_field("dataset").remote_field.on_delete is models.PROTECT
+    assert DatasetVersionCase._meta.get_field("organization").remote_field.on_delete is models.PROTECT
+    assert DatasetVersionCase._meta.get_field("version").remote_field.on_delete is models.PROTECT
+    with pytest.raises(ProtectedError):
+        dataset.delete()
+    assert DatasetVersion.objects.filter(id=version.id).exists()
 
 
 def test_update_delete_and_clone_draft_case() -> None:
